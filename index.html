@@ -68,6 +68,7 @@
                         <li>Week Beginning <span class="text-rose-500 font-sans font-bold">(Monday)</span></li>
                         <li>Task Name</li>
                         <li>Hours Billed <em class="text-slate-400">(or Hours)</em></li>
+                        <li>Type Code</li>
                     </ol>
                     <p class="text-[10px] text-slate-400 mt-3 pt-2 border-t border-slate-200">Note: Extra columns (like Role, OBS, Modified Date) are automatically ignored.</p>
                 </div>
@@ -92,6 +93,7 @@
                 <button onclick="app.setTab('exec')" id="tab-btn-exec" class="py-3 text-sm font-medium tab-active transition-all whitespace-nowrap">Executive Summary</button>
                 <button onclick="app.setTab('prod')" id="tab-btn-prod" class="py-3 text-sm font-medium text-slate-500 transition-all whitespace-nowrap">Productive Analysis</button>
                 <button onclick="app.setTab('nonprod')" id="tab-btn-nonprod" class="py-3 text-sm font-medium text-slate-500 transition-all whitespace-nowrap">Non-Productive Analysis</button>
+                <button onclick="app.setTab('nonbill')" id="tab-btn-nonbill" class="py-3 text-sm font-medium text-slate-500 transition-all whitespace-nowrap">Non-Bill Analysis</button>
                 <button onclick="app.setTab('resourcing')" id="tab-btn-resourcing" class="py-3 text-sm font-medium text-slate-500 transition-all whitespace-nowrap">Resourcing Analysis</button>
             </div>
 
@@ -148,6 +150,44 @@
                     </div>
                     <div id="grid-container-nonprod"></div>
                 </div>
+                <!-- NON-BILL -->
+                <div id="sec-nonbill" class="hidden space-y-4">
+                    <!-- New KPI Row for Non-Bill -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 border-l-4 border-l-amber-500">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase">Total Non-Billable Hours</p>
+                            <h2 class="text-2xl font-bold text-slate-800 mt-0.5" id="kpi-nb-total-hours">-</h2>
+                        </div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 border-l-4 border-l-amber-400">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase">Avg. Monthly Non-Bill</p>
+                            <h2 class="text-2xl font-bold text-slate-800 mt-0.5" id="kpi-nb-avg-monthly">-</h2>
+                        </div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 border-l-4 border-l-slate-400">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase">Peak Non-Bill Month</p>
+                            <h2 class="text-xl font-bold text-slate-800 mt-0.5" id="kpi-nb-peak-month">-</h2>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 h-[350px] flex flex-col"><h3 class="font-bold text-slate-800 text-sm mb-2">Weekly Non-Billable Hours</h3><div class="flex-1 relative min-h-0"><canvas id="chart-nonbill-trend"></canvas></div></div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 h-[420px] flex flex-col">
+                            <h3 class="font-bold text-slate-800 text-sm mb-2">Monthly Non-Billable Hours</h3>
+                            <div class="flex-1 relative min-h-0"><canvas id="chart-nonbill-monthly"></canvas></div>
+                            <!-- Trend Analysis Box -->
+                            <div id="nonbill-trend-analysis" class="mt-2 p-2 bg-amber-50 rounded border border-amber-100 text-[11px] text-amber-900 hidden"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 gap-4">
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 h-[400px] flex flex-col"><h3 class="font-bold text-slate-800 text-sm mb-2">Monthly Non-Billable Hours by Manager (Trend)</h3><div class="flex-1 relative min-h-0"><canvas id="chart-nonbill-mgr-monthly"></canvas></div></div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 h-[500px] flex flex-col"><h3 class="font-bold text-slate-800 text-sm mb-2">Task Distribution (Non-Billable)</h3><div class="flex-1 relative min-h-0"><canvas id="chart-nonbill-doughnut"></canvas></div></div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 h-[500px] flex flex-col"><h3 class="font-bold text-slate-800 text-sm mb-2">Resource-wise Non-Billable Hours (All)</h3><div class="flex-1 relative min-h-0"><canvas id="chart-nonbill-resources"></canvas></div></div>
+                    </div>
+                    <div id="grid-container-nonbill"></div>
+                </div>
                 <!-- RESOURCING -->
                 <div id="sec-resourcing" class="hidden space-y-4">
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -202,7 +242,7 @@
         Chart.defaults.plugins.datalabels.formatter = (value) => (typeof value === 'number' ? Math.round(value) : value);
         Chart.defaults.onHover = (event, chartElement) => { event.native.target.style.cursor = chartElement.length ? 'pointer' : 'default'; };
 
-        const CONFIG = { requiredColumns: ["Date", "Oracle Code", "Client Name", "Project Code", "Project Description", "Resource Name", "Resource Manager", "Timesheet Status", "Week Beginning", "Task Name", "Hours Billed"], nonProductiveCode: 100002, weeklyCapacity: 40 };
+        const CONFIG = { requiredColumns: ["Date", "Oracle Code", "Client Name", "Project Code", "Project Description", "Resource Name", "Resource Manager", "Timesheet Status", "Week Beginning", "Task Name", "Hours Billed", "Type Code"], nonProductiveCode: 100002, weeklyCapacity: 40 };
         const STATE = { rawData: [], processedData: [], filteredData: [], filterOptions: {}, activeFilters: {}, charts: {}, tableGroupBy: 'none', sortKey: null, sortAsc: true, currentTab: 'exec', globalMaxWeek: '', resUtilSort: 'alpha' };
         function generateColors(count) { const colors = ['#4f46e5', '#ef4444', '#10b981', '#f59e0b', '#3b82f6', '#ec4899', '#8b5cf6', '#06b6d4', '#84cc16', '#64748b']; return Array.from({ length: count }, (_, i) => colors[i % colors.length]); }
 
@@ -223,7 +263,7 @@
             }
             setTab(tab) {
                 STATE.currentTab = tab;
-                ['exec', 'prod', 'nonprod', 'resourcing'].forEach(t => {
+                ['exec', 'prod', 'nonprod', 'nonbill', 'resourcing'].forEach(t => {
                     const sec = document.getElementById(`sec-${t}`);
                     if(sec) sec.classList.toggle('hidden', t !== tab);
                     const btn = document.getElementById(`tab-btn-${t}`);
@@ -253,17 +293,9 @@
             }
             validateAndTransform(json) {
                 if (!json || json.length === 0) throw new Error("File is empty.");
-                
-                // Alias Mapping: Maps external Excel column names to internal standard names
-                const ALIAS_MAP = {
-                    "oracle proj id": "oracle code",
-                    "project name": "project description",
-                    "hours": "hours billed"
-                };
-
+                const ALIAS_MAP = { "oracle proj id": "oracle code", "project name": "project description", "hours": "hours billed" };
                 const headers = Object.keys(json[0]).map(h => h.trim().toLowerCase());
                 const mappedHeaders = headers.map(h => ALIAS_MAP[h] || h);
-
                 const missing = CONFIG.requiredColumns.filter(req => !mappedHeaders.includes(req.toLowerCase()));
                 if (missing.length > 0) throw new Error(`Missing Columns: ${missing.join(', ')}`);
 
@@ -274,11 +306,8 @@
                         const lowerK = k.trim().toLowerCase();
                         const mappedKey = ALIAS_MAP[lowerK] || lowerK;
                         const match = CONFIG.requiredColumns.find(rc => rc.toLowerCase() === mappedKey);
-                        if (match) {
-                            safeRow[match] = row[k];
-                        }
+                        if (match) safeRow[match] = row[k];
                     });
-
                     const status = (safeRow['Timesheet Status'] || '').toLowerCase();
                     if (status.includes('cancelled') || status.includes('returned')) return;
                     let wDate = safeRow['Week Beginning'];
@@ -296,33 +325,27 @@
                 const deduplicatedData = [];
                 for (const rows of groupedRows.values()) {
                     const statuses = rows.map(r => r._normStatus);
-                    if (statuses.some(s => s.includes('adjusted'))) {
-                        deduplicatedData.push(...rows.filter(r => r._normStatus.includes('adjusted')));
-                    } else if (statuses.some(s => s.includes('posted'))) {
-                        deduplicatedData.push(...rows.filter(r => r._normStatus.includes('posted')));
-                    } else {
-                        deduplicatedData.push(...rows);
-                    }
+                    if (statuses.some(s => s.includes('adjusted'))) deduplicatedData.push(...rows.filter(r => r._normStatus.includes('adjusted')));
+                    else if (statuses.some(s => s.includes('posted'))) deduplicatedData.push(...rows.filter(r => r._normStatus.includes('posted')));
+                    else deduplicatedData.push(...rows);
                 }
 
                 const processed = [];
                 const distincts = { 'Year': new Set(), 'Month': new Set(), 'Week Beginning': new Set(), 'Client Name': new Set(), 'Project Code': new Set(), 'Resource Manager': new Set(), 'Resource Name': new Set(), 'Task Name': new Set(), 'Oracle Code': new Set() };
                 let maxW = '';
-                
                 deduplicatedData.forEach((safeRow, idx) => {
                     const wDate = safeRow._wDate;
-                    if (wDate.getDay() !== 1) throw new Error(`Row ${idx+2}: Week Beginning must be a Monday.`);
-                    
-                    const weekStr = wDate.toISOString().split('T')[0];
+                    const weekStr = safeRow.weekString;
                     if(weekStr > maxW) maxW = weekStr;
-                    
                     const hours = parseFloat(safeRow['Hours Billed']) || 0;
                     const oracleCode = parseInt(safeRow['Oracle Code']);
+                    const typeCodeStr = String(safeRow['Type Code'] || '').trim().toUpperCase();
+                    const isNonBillable = (typeCodeStr === 'NON' && oracleCode !== CONFIG.nonProductiveCode);
                     const monthStr = wDate.toLocaleString('default', { month: 'short', year: 'numeric' });
                     const longMonthStr = wDate.toLocaleString('default', { month: 'long', year: 'numeric' });
                     const yearStr = wDate.getFullYear().toString();
-                    const enriched = { ...safeRow, _id: idx, hours: hours, isProductive: oracleCode !== CONFIG.nonProductiveCode, oracleCodeInt: oracleCode, monthString: monthStr, 'Year': yearStr, 'Month': longMonthStr, 'Week Beginning': weekStr };
-                    Object.keys(distincts).forEach(k => { if(enriched[k]) distincts[k].add(enriched[k]); });
+                    const enriched = { ...safeRow, _id: idx, hours: hours, isProductive: oracleCode !== CONFIG.nonProductiveCode, isNonBillable: isNonBillable, 'Type Code': typeCodeStr, oracleCodeInt: oracleCode, monthString: monthStr, 'Year': yearStr, 'Month': longMonthStr, 'Week Beginning': weekStr };
+                    Object.keys(distincts).forEach(k => { if(enriched[k]) distincts[k].add(String(enriched[k])); });
                     processed.push(enriched);
                 });
                 STATE.globalMaxWeek = maxW;
@@ -338,6 +361,7 @@
                 const gridHtml = document.getElementById('shared-grid-template').innerHTML;
                 document.getElementById('grid-container-prod').innerHTML = gridHtml;
                 document.getElementById('grid-container-nonprod').innerHTML = gridHtml;
+                document.getElementById('grid-container-nonbill').innerHTML = gridHtml;
                 this.renderMultiSelectFilters();
                 this.setTab('exec');
             }
@@ -345,21 +369,14 @@
             calculateCapacityFromSet(weekStringArray, globalMaxWeek) {
                 const uniqueWeeks = Array.from(new Set(weekStringArray)).sort();
                 if(uniqueWeeks.length === 0) return 0;
-                
                 const minTime = new Date(uniqueWeeks[0]).getTime();
                 let maxTime = new Date(uniqueWeeks[uniqueWeeks.length-1]).getTime();
                 const ONE_WEEK = 604800000;
-                
                 if (globalMaxWeek) {
                     const globalTime = new Date(globalMaxWeek).getTime();
-                    const diffWeeks = Math.round((globalTime - maxTime) / ONE_WEEK);
-                    if (diffWeeks === 1) {
-                        maxTime = globalTime;
-                    }
+                    if (Math.round((globalTime - maxTime) / ONE_WEEK) === 1) maxTime = globalTime;
                 }
-                
-                const totalWeeks = Math.round((maxTime - minTime) / ONE_WEEK) + 1;
-                return totalWeeks * 40;
+                return (Math.round((maxTime - minTime) / ONE_WEEK) + 1) * 40;
             }
 
             renderMultiSelectFilters() {
@@ -368,20 +385,21 @@
                 const insertionPoint = container.lastElementChild;
                 const order = ['Year', 'Month', 'Week Beginning', 'Resource Manager', 'Resource Name', 'Client Name', 'Project Code', 'Task Name', 'Oracle Code'];
                 const keys = Object.keys(STATE.filterOptions).sort((a,b) => order.indexOf(a) - order.indexOf(b));
-
                 keys.forEach(key => {
                     if (!STATE.activeFilters[key]) STATE.activeFilters[key] = new Set();
-                    const values = Array.from(STATE.filterOptions[key]).sort();
+                    
+                    let values = Array.from(STATE.filterOptions[key]);
+                    if (key === 'Month') values.sort((a, b) => new Date(a) - new Date(b));
+                    else values.sort();
+
                     const group = document.createElement('div'); group.className = 'relative filter-group'; 
                     const safeKey = key.replace(/[^a-zA-Z0-9]/g, '');
                     const btn = document.createElement('button'); btn.id = `btn-filter-${safeKey}`;
                     this.updateFilterButtonText(btn, key);
                     btn.onclick = (e) => { e.stopPropagation(); this.toggleDropdown(group); };
-                    
                     const dropdown = document.createElement('div');
                     dropdown.className = 'ms-dropdown absolute top-full left-0 mt-1 w-64 bg-white border border-slate-200 shadow-xl rounded-lg z-50 p-2 hidden max-h-[22rem] flex-col';
                     dropdown.innerHTML = `<div class="flex justify-between items-center mb-2 px-1 pb-1 border-b border-slate-100 shrink-0"><div class="flex gap-2"><span class="text-[9px] cursor-pointer text-indigo-600 font-bold hover:underline" onclick="app.setFilterAll('${key}', true, '${safeKey}')">All</span><span class="text-[9px] cursor-pointer text-rose-600 font-bold hover:underline" onclick="app.setFilterAll('${key}', false, '${safeKey}')">Clear</span></div><button class="bg-indigo-600 text-white text-[9px] px-2 py-0.5 rounded hover:bg-indigo-700" onclick="app.closeAllDropdowns()">Done</button></div><div class="px-1 mb-2 shrink-0"><input type="text" id="search-${safeKey}" placeholder="Search..." class="w-full text-xs border border-slate-200 rounded px-2 py-1.5 focus:outline-none focus:border-indigo-500 bg-slate-50"></div>`;
-                    
                     const listContainer = document.createElement('div');
                     listContainer.className = 'overflow-y-auto min-h-0 flex-1 custom-scrollbar'; listContainer.id = `list-${safeKey}`;
                     values.forEach(val => {
@@ -389,60 +407,34 @@
                         label.innerHTML = `<input type="checkbox" value="${val}" ${STATE.activeFilters[key].has(val)?'checked':''} onchange="app.toggleFilterValue('${key}', '${val}', this.checked)" class="rounded text-indigo-600 w-3 h-3"><span class="truncate">${val}</span>`;
                         listContainer.appendChild(label);
                     });
-                    
                     dropdown.querySelector('input').onclick = (e) => e.stopPropagation();
-                    dropdown.querySelector('input').oninput = (e) => {
-                        app.updateDropdownOptions();
-                    };
-
+                    dropdown.querySelector('input').oninput = () => this.updateDropdownOptions();
                     dropdown.appendChild(listContainer); group.appendChild(btn); group.appendChild(dropdown);
                     container.insertBefore(group, insertionPoint);
                 });
-                
-                // Initialize cascading filter state
                 this.updateDropdownOptions();
             }
 
             updateDropdownOptions() {
                 const order = ['Year', 'Month', 'Week Beginning', 'Resource Manager', 'Resource Name', 'Client Name', 'Project Code', 'Task Name', 'Oracle Code'];
-                
                 order.forEach(key => {
-                    if (!STATE.filterOptions[key]) return;
-                    
-                    // 1. Calculate valid options for this key by ignoring ITS OWN active filters
                     const partiallyFiltered = STATE.processedData.filter(row => {
                         for (const [otherKey, activeSet] of Object.entries(STATE.activeFilters)) {
-                            if (otherKey === key) continue; // Ignore self
+                            if (otherKey === key) continue;
                             if (activeSet.size > 0 && !activeSet.has(String(row[otherKey]))) return false;
                         }
                         return true;
                     });
-                    
                     const validValues = new Set(partiallyFiltered.map(r => String(r[key])));
-                    
-                    // 2. Update the DOM items for this key
                     const safeKey = key.replace(/[^a-zA-Z0-9]/g, '');
                     const listContainer = document.getElementById(`list-${safeKey}`);
                     if (!listContainer) return;
-                    
-                    const searchInput = document.getElementById(`search-${safeKey}`);
-                    const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
-                    
+                    const searchTerm = (document.getElementById(`search-${safeKey}`)?.value || '').toLowerCase();
                     listContainer.querySelectorAll('.checkbox-item').forEach(item => {
-                        const cb = item.querySelector('input');
-                        const val = cb.value;
-                        
-                        const matchesSearch = item.innerText.toLowerCase().includes(searchTerm);
-                        // Keep visible if it's cascaded valid OR if it's currently selected (prevents disappearing active selections)
-                        const isCascadedValid = validValues.has(val) || STATE.activeFilters[key].has(val);
-                        
-                        if (isCascadedValid && matchesSearch) {
-                            item.style.display = 'flex';
-                            item.setAttribute('data-visible', 'true');
-                        } else {
-                            item.style.display = 'none';
-                            item.setAttribute('data-visible', 'false');
-                        }
+                        const val = item.querySelector('input').value;
+                        const match = item.innerText.toLowerCase().includes(searchTerm) && (validValues.has(val) || STATE.activeFilters[key].has(val));
+                        item.style.display = match ? 'flex' : 'none';
+                        item.setAttribute('data-visible', match ? 'true' : 'false');
                     });
                 });
             }
@@ -450,137 +442,95 @@
             updateFilterButtonText(btn, key) { const count = STATE.activeFilters[key].size; btn.innerHTML = `${key} ${count > 0 ? `<span class="bg-indigo-600 text-white text-[9px] px-1.5 rounded-full">${count}</span>` : '<i class="fa-solid fa-chevron-down text-[10px] opacity-50"></i>'}`; btn.className = `flex items-center gap-1.5 px-3 py-1 text-xs border rounded-full transition-colors ${count > 0 ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-medium' : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50'}`; }
             toggleDropdown(group) { const d = group.querySelector('.ms-dropdown'); const o = d.classList.contains('show'); this.closeAllDropdowns(); if(!o) { d.classList.add('show'); setTimeout(()=>d.querySelector('input').focus(),50); } }
             closeAllDropdowns() { document.querySelectorAll('.ms-dropdown').forEach(d => d.classList.remove('show')); }
-            
-            // Handles explicit clearing from background clicks
-            clearChartFilter(filterKey) {
-                if (STATE.activeFilters[filterKey] && STATE.activeFilters[filterKey].size > 0) {
-                    STATE.activeFilters[filterKey].clear();
-                    this.renderMultiSelectFilters();
-                    this.filterData();
-                }
-            }
-
+            clearChartFilter(filterKey) { if (STATE.activeFilters[filterKey]?.size > 0) { STATE.activeFilters[filterKey].clear(); this.renderMultiSelectFilters(); this.filterData(); } }
             handleChartClick(filterKey, value) {
                 if (!STATE.activeFilters[filterKey]) STATE.activeFilters[filterKey] = new Set();
                 const valStr = String(value);
-                
-                if (STATE.activeFilters[filterKey].has(valStr) && STATE.activeFilters[filterKey].size === 1) {
-                    STATE.activeFilters[filterKey].clear();
-                } else {
-                    STATE.activeFilters[filterKey].clear();
-                    STATE.activeFilters[filterKey].add(valStr);
-                }
-                
-                this.renderMultiSelectFilters();
-                this.filterData();
+                if (STATE.activeFilters[filterKey].has(valStr) && STATE.activeFilters[filterKey].size === 1) STATE.activeFilters[filterKey].clear();
+                else { STATE.activeFilters[filterKey].clear(); STATE.activeFilters[filterKey].add(valStr); }
+                this.renderMultiSelectFilters(); this.filterData();
             }
-
             toggleFilterValue(key, val, checked) { if(checked) STATE.activeFilters[key].add(val); else STATE.activeFilters[key].delete(val); this.updateFilterButtonText(document.getElementById(`btn-filter-${key.replace(/[^a-zA-Z0-9]/g, '')}`), key); this.filterData(); }
             setFilterAll(key, selectAll, safeKey) { const list = document.getElementById(`list-${safeKey}`); list.querySelectorAll('.checkbox-item[data-visible="true"] input').forEach(cb => { cb.checked = selectAll; if(selectAll) STATE.activeFilters[key].add(cb.value); else STATE.activeFilters[key].delete(cb.value); }); this.updateFilterButtonText(document.getElementById(`btn-filter-${safeKey}`), key); this.filterData(); }
             resetFilters() { Object.keys(STATE.activeFilters).forEach(k => STATE.activeFilters[k].clear()); this.renderMultiSelectFilters(); this.filterData(); }
-            
             filterData() { 
-                const search = document.querySelector('.table-search')?.value.toLowerCase() || '';
-                
+                const search = (document.querySelector('.table-search')?.value || '').toLowerCase();
                 STATE.filteredData = STATE.processedData.filter(row => {
                     for(const [k, s] of Object.entries(STATE.activeFilters)) if(s.size > 0 && !s.has(String(row[k]))) return false;
                     return search ? Object.values(row).join(' ').toLowerCase().includes(search) : true;
                 });
-                
                 document.getElementById('record-count').innerText = `${STATE.filteredData.length} records`;
-                
-                this.updateDropdownOptions(); // Trigger cascade update
-                
-                this.updateDashboard(); 
+                this.updateDropdownOptions(); this.updateDashboard(); 
             }
-
-            setResUtilSort(val) {
-                STATE.resUtilSort = val;
-                this.renderCharts();
-            }
+            setResUtilSort(val) { STATE.resUtilSort = val; this.renderCharts(); }
 
             updateDashboard() {
                 const data = STATE.filteredData;
-                let p = 0, np = 0;
+                let p = 0, np = 0, nb = 0;
                 const resourceMap = {}; 
                 data.forEach(d => {
                     if (d.isProductive) p += d.hours; else np += d.hours;
+                    if (d.isNonBillable) nb += d.hours;
                     if(!resourceMap[d['Resource Name']]) resourceMap[d['Resource Name']] = new Set();
                     resourceMap[d['Resource Name']].add(d.weekString);
                 });
-
                 let totalCap = 0;
-                Object.values(resourceMap).forEach(weekSet => totalCap += this.calculateCapacityFromSet(Array.from(weekSet), STATE.globalMaxWeek));
+                Object.values(resourceMap).forEach(ws => totalCap += this.calculateCapacityFromSet(Array.from(ws), STATE.globalMaxWeek));
                 const util = totalCap > 0 ? (p / totalCap * 100) : 0;
-
                 const fmt = (n) => n.toLocaleString(undefined, { maximumFractionDigits: 1 });
                 document.getElementById('kpi-prod-hours').innerText = fmt(p);
                 document.getElementById('kpi-non-prod-hours').innerText = fmt(np);
                 document.getElementById('kpi-capacity').innerText = fmt(totalCap);
                 document.getElementById('kpi-utilization').innerText = util.toFixed(1) + '%';
-                this.renderCharts();
-                this.updateTable(); 
-                this.renderRawTable();
+                if (document.getElementById('kpi-nb-total-hours')) document.getElementById('kpi-nb-total-hours').innerText = fmt(nb);
+                this.renderCharts(); this.updateTable(); this.renderRawTable();
             }
 
             renderCharts() {
                 Object.values(STATE.charts).forEach(c => c?.destroy());
                 const data = STATE.filteredData;
-                const commonConfig = { maintainAspectRatio: false, plugins: { datalabels: { formatter: (v) => v.toFixed(0) + '%' } } };
-
-                const weeks = {};
-                const months = {};
-                const resWeekMap = {}; 
-
+                const commonConfig = { maintainAspectRatio: false, plugins: { datalabels: { formatter: (v) => Math.round(v) + '%' } } };
+                const weeks = {}; const months = {}; const resWeekMap = {}; 
                 data.forEach(d => {
                     if(!resWeekMap[d['Resource Name']]) resWeekMap[d['Resource Name']] = new Set();
                     resWeekMap[d['Resource Name']].add(d.weekString);
-
-                    if(!weeks[d.weekString]) weeks[d.weekString] = { p:0, np:0 };
+                    if(!weeks[d.weekString]) weeks[d.weekString] = { p:0, np:0, nb: 0, tot: 0 };
                     if(d.isProductive) weeks[d.weekString].p += d.hours; else weeks[d.weekString].np += d.hours;
-
-                    if(!months[d.Month]) months[d.Month] = { p:0, np:0, firstDate: d._wDate };
+                    if(d.isNonBillable) weeks[d.weekString].nb += d.hours;
+                    weeks[d.weekString].tot += d.hours;
+                    if(!months[d.Month]) months[d.Month] = { p:0, np:0, nb: 0, tot: 0, firstDate: d._wDate };
                     if(d.isProductive) months[d.Month].p += d.hours; else months[d.Month].np += d.hours;
+                    if(d.isNonBillable) months[d.Month].nb += d.hours;
+                    months[d.Month].tot += d.hours;
                     if(d._wDate < months[d.Month].firstDate) months[d.Month].firstDate = d._wDate;
                 });
-
                 const sortedWeeks = Object.keys(weeks).sort();
                 const sortedMonths = Object.keys(months).sort((a,b) => months[a].firstDate - months[b].firstDate);
-
                 const weekUtilData = sortedWeeks.map(w => {
-                    let wCap = 0;
-                    Object.entries(resWeekMap).forEach(([r, set]) => {
-                         const wTime = new Date(w).getTime();
-                         const times = Array.from(set).map(s=>new Date(s).getTime());
-                         const min = Math.min(...times);
-                         let max = Math.max(...times);
-                         if (STATE.globalMaxWeek && (new Date(STATE.globalMaxWeek).getTime() - max === 604800000)) max = new Date(STATE.globalMaxWeek).getTime();
-                         if(wTime >= min && wTime <= max) wCap += 40;
+                    let wCap = 0; Object.entries(resWeekMap).forEach(([r, set]) => {
+                        const wTime = new Date(w).getTime(); const times = Array.from(set).map(s=>new Date(s).getTime());
+                        const min = Math.min(...times); let max = Math.max(...times);
+                        if (STATE.globalMaxWeek && (new Date(STATE.globalMaxWeek).getTime() - max === 604800000)) max = new Date(STATE.globalMaxWeek).getTime();
+                        if(wTime >= min && wTime <= max) wCap += 40;
                     });
                     return wCap > 0 ? (weeks[w].p / wCap * 100) : 0;
                 });
-
                 const monthUtilData = sortedMonths.map(m => {
-                    let mCap = 0;
-                    const weeksInMonth = sortedWeeks.filter(w => new Date(w).toLocaleString('default', { month: 'long', year: 'numeric' }) === m);
-                    weeksInMonth.forEach(w => {
-                        const wTime = new Date(w).getTime();
-                         Object.entries(resWeekMap).forEach(([r, set]) => {
-                             const times = Array.from(set).map(s=>new Date(s).getTime());
-                             const min = Math.min(...times);
-                             let max = Math.max(...times);
-                             if (STATE.globalMaxWeek && (new Date(STATE.globalMaxWeek).getTime() - max === 604800000)) max = new Date(STATE.globalMaxWeek).getTime();
-                             if(wTime >= min && wTime <= max) mCap += 40;
-                         });
+                    let mCap = 0; const wsInM = sortedWeeks.filter(w => new Date(w).toLocaleString('default', { month: 'long', year: 'numeric' }) === m);
+                    wsInM.forEach(w => {
+                        const wTime = new Date(w).getTime(); Object.entries(resWeekMap).forEach(([r, set]) => {
+                            const times = Array.from(set).map(s=>new Date(s).getTime());
+                            const min = Math.min(...times); let max = Math.max(...times);
+                            if (STATE.globalMaxWeek && (new Date(STATE.globalMaxWeek).getTime() - max === 604800000)) max = new Date(STATE.globalMaxWeek).getTime();
+                            if(wTime >= min && wTime <= max) mCap += 40;
+                        });
                     });
                     return mCap > 0 ? (months[m].p / mCap * 100) : 0;
                 });
-
                 ['chart-trend', 'chart-trend-prod'].forEach(id => {
                     const el = document.getElementById(id); if(!el) return;
                     STATE.charts[id] = new Chart(el, { type: 'line', data: { labels: sortedWeeks, datasets: [{ label: 'Utilization %', data: weekUtilData, borderColor: '#4f46e5', tension: 0.3 }] }, options: { ...commonConfig, onClick: (e, items) => { if(items.length) this.handleChartClick('Week Beginning', sortedWeeks[items[0].index]); else this.clearChartFilter('Week Beginning'); } } });
                 });
-                
                 ['chart-monthly-trend', 'chart-monthly-trend-prod'].forEach(id => {
                     const el = document.getElementById(id); if(!el) return;
                     STATE.charts[id] = new Chart(el, { type: 'line', data: { labels: sortedMonths, datasets: [{ label: 'Utilization %', data: monthUtilData, borderColor: '#10b981', tension: 0.3 }] }, options: { ...commonConfig, onClick: (e, items) => { if(items.length) this.handleChartClick('Month', sortedMonths[items[0].index]); else this.clearChartFilter('Month'); } } });
@@ -589,104 +539,90 @@
                 if(STATE.currentTab === 'prod') {
                     this.renderMultiLine('chart-manager-weekly', 'weekString', sortedWeeks, sortedWeeks);
                     this.renderMultiLine('chart-manager-monthly', 'Month', sortedMonths, sortedWeeks);
-                    
-                    STATE.charts.monthlyStack = new Chart(document.getElementById('chart-monthly-stack'), { 
-                        type: 'bar', data: { labels: sortedMonths, datasets: [{ label: 'Productive Hours', data: sortedMonths.map(m => months[m].p), backgroundColor: '#10b981' }] }, 
-                        options: { maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true } }, plugins: { datalabels: { formatter: Math.round, color: '#000' } }, onClick: (e, items) => { if(items.length) this.handleChartClick('Month', sortedMonths[items[0].index]); else this.clearChartFilter('Month'); } } 
-                    });
-
-                    const resStats = [];
-                    Object.entries(resWeekMap).forEach(([r, set]) => {
+                    STATE.charts.monthlyStack = new Chart(document.getElementById('chart-monthly-stack'), { type: 'bar', data: { labels: sortedMonths, datasets: [{ label: 'Productive Hours', data: sortedMonths.map(m => months[m].p), backgroundColor: '#10b981' }] }, options: { maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true } }, plugins: { datalabels: { formatter: Math.round, color: '#000' } }, onClick: (e, items) => { if(items.length) this.handleChartClick('Month', sortedMonths[items[0].index]); else this.clearChartFilter('Month'); } } });
+                    const resStats = []; Object.entries(resWeekMap).forEach(([r, set]) => {
                         const cap = this.calculateCapacityFromSet(Array.from(set), STATE.globalMaxWeek);
                         const p = data.filter(d => d['Resource Name'] === r && d.isProductive).reduce((a,b) => a + b.hours, 0);
-                        const u = cap > 0 ? (p / cap * 100) : 0;
-                        resStats.push({ n: r, u });
+                        resStats.push({ n: r, u: cap > 0 ? (p / cap * 100) : 0 });
                     });
-                    
-                    resStats.sort((a,b) => {
-                        if (STATE.resUtilSort === 'desc') return b.u - a.u;
-                        if (STATE.resUtilSort === 'asc') return a.u - b.u;
-                        return a.n.localeCompare(b.n);
-                    });
-
-                    STATE.charts.res = new Chart(document.getElementById('chart-resources'), {
-                        type: 'bar', indexAxis: 'x',
-                        data: { labels: resStats.map(r => r.n), datasets: [{ data: resStats.map(r => r.u), backgroundColor: resStats.map(r => r.u >= 80 ? '#10b981' : r.u >= 70 ? '#facc15' : '#ef4444') }] },
-                        options: { maintainAspectRatio: false, plugins: { legend: { display: false }, datalabels: { color: '#000', anchor: 'end', align: 'end', rotation: -90, formatter: v=>v.toFixed(0)+'%'} }, scales: { x: { ticks: { autoSkip: false, maxRotation: 90, minRotation: 90, font: {size: 9} } }, y: { max: 100 } }, onClick: (e, items) => { if(items.length) this.handleChartClick('Resource Name', resStats[items[0].index].n); else this.clearChartFilter('Resource Name'); } }
-                    });
+                    resStats.sort((a,b) => STATE.resUtilSort === 'desc' ? b.u - a.u : STATE.resUtilSort === 'asc' ? a.u - b.u : a.n.localeCompare(b.n));
+                    STATE.charts.res = new Chart(document.getElementById('chart-resources'), { type: 'bar', data: { labels: resStats.map(r => r.n), datasets: [{ data: resStats.map(r => r.u), backgroundColor: resStats.map(r => r.u >= 80 ? '#10b981' : r.u >= 70 ? '#facc15' : '#ef4444') }] }, options: { maintainAspectRatio: false, plugins: { legend: { display: false }, datalabels: { color: '#000', anchor: 'end', align: 'end', rotation: -90, formatter: v=>Math.round(v)+'%'} }, scales: { x: { ticks: { autoSkip: false, maxRotation: 90, minRotation: 90, font: {size: 9} } }, y: { max: 100 } }, onClick: (e, items) => { if(items.length) this.handleChartClick('Resource Name', resStats[items[0].index].n); else this.clearChartFilter('Resource Name'); } } });
                 }
 
                 if(STATE.currentTab === 'nonprod') {
                     const npTasks = {}; data.filter(d=>!d.isProductive).forEach(d => npTasks[d['Task Name']] = (npTasks[d['Task Name']]||0) + d.hours);
                     const topNP = Object.entries(npTasks).sort((a,b)=>b[1]-a[1]).slice(0,6);
-                    STATE.charts.doughnut = new Chart(document.getElementById('chart-doughnut'), { 
-                        type: 'doughnut', 
-                        data: { labels: topNP.map(t=>t[0]), datasets: [{data:topNP.map(t=>t[1]), backgroundColor: generateColors(6)}] }, 
-                        options: { 
-                            maintainAspectRatio: false, 
-                            layout: { padding: 25 },
-                            plugins: { 
-                                legend: { position: 'bottom', labels: { padding: 20, boxWidth: 12, font: { size: 10 } } },
-                                datalabels: { 
-                                    anchor: 'center', align: 'center', color: '#ffffff', font: { weight: 'bold', size: 10 },
-                                    formatter: (v,ctx) => {
-                                        let pct = (v/ctx.dataset.data.reduce((a,b)=>a+b,0)*100).toFixed(0);
-                                        return pct >= 5 ? `${v}\n(${pct}%)` : ''; 
-                                    } 
-                                } 
-                            }, 
-                            onClick: (e, items) => { if(items.length) this.handleChartClick('Task Name', topNP[items[0].index][0]); else this.clearChartFilter('Task Name'); } 
-                        } 
-                    });
-
-                    const trendFmt = (v, ctx) => {
-                        const l = ctx.chart.data.labels[ctx.dataIndex];
-                        const tot = (weeks[l]?.p || 0) + (weeks[l]?.np || 0) || (months[l]?.p || 0) + (months[l]?.np || 0);
-                        return `${v} (${tot>0?(v/tot*100).toFixed(0):0}%)`;
-                    };
+                    STATE.charts.doughnut = new Chart(document.getElementById('chart-doughnut'), { type: 'doughnut', data: { labels: topNP.map(t=>t[0]), datasets: [{data:topNP.map(t=>t[1]), backgroundColor: generateColors(6)}] }, options: { maintainAspectRatio: false, layout: { padding: 25 }, plugins: { legend: { position: 'bottom', labels: { padding: 20, boxWidth: 12, font: { size: 10 } } }, datalabels: { anchor: 'center', align: 'center', color: '#ffffff', font: { weight: 'bold', size: 10 }, formatter: (v,ctx) => { let pct = (v/ctx.dataset.data.reduce((a,b)=>a+b,0)*100).toFixed(0); return pct >= 5 ? `${v}\n(${pct}%)` : ''; } } }, onClick: (e, items) => { if(items.length) this.handleChartClick('Task Name', topNP[items[0].index][0]); else this.clearChartFilter('Task Name'); } } });
+                    const trendFmt = (v, ctx) => { const l = ctx.chart.data.labels[ctx.dataIndex]; const tot = weeks[l]?.tot || months[l]?.tot; return `${v} (${tot>0?(v/tot*100).toFixed(0):0}%)`; };
                     STATE.charts.npTrend = new Chart(document.getElementById('chart-nonprod-trend'), { type: 'bar', data: { labels: sortedWeeks, datasets: [{ label: 'NP Hours', data: sortedWeeks.map(w=>weeks[w].np), backgroundColor: '#f43f5e' }] }, options: { maintainAspectRatio: false, plugins: { legend: {display:false}, datalabels: { color: '#000', formatter: trendFmt } }, onClick: (e, items) => { if(items.length) this.handleChartClick('Week Beginning', sortedWeeks[items[0].index]); else this.clearChartFilter('Week Beginning'); } } });
-                    
                     STATE.charts.npMonthly = new Chart(document.getElementById('chart-nonprod-monthly'), { type: 'bar', data: { labels: sortedMonths, datasets: [{ label: 'NP Hours', data: sortedMonths.map(m=>months[m].np), backgroundColor: '#fb7185' }] }, options: { maintainAspectRatio: false, plugins: { legend: {display:false}, datalabels: { color: '#000', formatter: trendFmt } }, onClick: (e, items) => { if(items.length) this.handleChartClick('Month', sortedMonths[items[0].index]); else this.clearChartFilter('Month'); } } });
-                    
                     const npRes = {}; data.filter(d=>!d.isProductive).forEach(d => npRes[d['Resource Name']] = (npRes[d['Resource Name']]||0)+d.hours);
                     const topResNP = Object.entries(npRes).sort((a,b)=>b[1]-a[1]);
-                    STATE.charts.npResources = new Chart(document.getElementById('chart-nonprod-resources'), { type: 'bar', indexAxis: 'x', data: { labels: topResNP.map(t=>t[0]), datasets: [{data:topResNP.map(t=>t[1]), backgroundColor: '#f43f5e'}] }, options: { maintainAspectRatio: false, plugins: { legend: {display:false}, datalabels: { color: '#000', anchor: 'end', align: 'end', rotation: -90, formatter: (v,ctx) => {
-                        const r = ctx.chart.data.labels[ctx.dataIndex]; const cap = this.calculateCapacityFromSet(Array.from(resWeekMap[r]), STATE.globalMaxWeek); return `${v} (${cap>0?(v/cap*100).toFixed(0):0}%)`;
-                    } } }, scales: { x: { ticks: { autoSkip: false, maxRotation: 90, minRotation: 90, font: {size: 9} } } }, onClick: (e, items) => { if(items.length) this.handleChartClick('Resource Name', topResNP[items[0].index][0]); else this.clearChartFilter('Resource Name'); } } });
+                    STATE.charts.npResources = new Chart(document.getElementById('chart-nonprod-resources'), { type: 'bar', data: { labels: topResNP.map(t=>t[0]), datasets: [{data:topResNP.map(t=>t[1]), backgroundColor: '#f43f5e'}] }, options: { maintainAspectRatio: false, plugins: { legend: {display:false}, datalabels: { color: '#000', anchor: 'end', align: 'end', rotation: -90, formatter: (v,ctx) => { const r = ctx.chart.data.labels[ctx.dataIndex]; const cap = this.calculateCapacityFromSet(Array.from(resWeekMap[r]), STATE.globalMaxWeek); return `${v} (${cap>0?(v/cap*100).toFixed(0):0}%)`; } } }, scales: { x: { ticks: { autoSkip: false, maxRotation: 90, minRotation: 90, font: {size: 9} } } }, onClick: (e, items) => { if(items.length) this.handleChartClick('Resource Name', topResNP[items[0].index][0]); else this.clearChartFilter('Resource Name'); } } });
+                }
+
+                if(STATE.currentTab === 'nonbill') {
+                    const nbTasks = {}; data.filter(d=>d.isNonBillable).forEach(d => nbTasks[d['Task Name']] = (nbTasks[d['Task Name']]||0) + d.hours);
+                    const topNB = Object.entries(nbTasks).sort((a,b)=>b[1]-a[1]).slice(0,6);
+                    STATE.charts.nbDoughnut = new Chart(document.getElementById('chart-nonbill-doughnut'), { type: 'doughnut', data: { labels: topNB.map(t=>t[0]), datasets: [{data:topNB.map(t=>t[1]), backgroundColor: generateColors(6)}] }, options: { maintainAspectRatio: false, layout: { padding: 25 }, plugins: { legend: { position: 'bottom', labels: { padding: 20, boxWidth: 12, font: { size: 10 } } }, datalabels: { anchor: 'center', align: 'center', color: '#ffffff', font: { weight: 'bold', size: 10 }, formatter: (v,ctx) => { let pct = (v/ctx.dataset.data.reduce((a,b)=>a+b,0)*100).toFixed(0); return pct >= 5 ? `${v}\n(${pct}%)` : ''; } } }, onClick: (e, items) => { if(items.length) this.handleChartClick('Task Name', topNB[items[0].index][0]); else this.clearChartFilter('Task Name'); } } });
+                    const trendFmt = (v, ctx) => { const l = ctx.chart.data.labels[ctx.dataIndex]; const tot = weeks[l]?.tot || months[l]?.tot; return `${v} (${tot>0?(v/tot*100).toFixed(0):0}%)`; };
+                    const nbWeeksData = sortedWeeks.map(w => weeks[w].nb);
+                    STATE.charts.nbTrend = new Chart(document.getElementById('chart-nonbill-trend'), { type: 'bar', data: { labels: sortedWeeks, datasets: [{ label: 'Non-Bill Hours', data: nbWeeksData, backgroundColor: '#f59e0b' }] }, options: { maintainAspectRatio: false, plugins: { legend: {display:false}, datalabels: { color: '#000', formatter: trendFmt } }, onClick: (e, items) => { if(items.length) this.handleChartClick('Week Beginning', sortedWeeks[items[0].index]); else this.clearChartFilter('Week Beginning'); } } });
+                    
+                    const nbMonthsData = sortedMonths.map(m => months[m].nb);
+                    const nbTrendBox = document.getElementById('nonbill-trend-analysis');
+                    if (nbMonthsData.length > 0) {
+                        const totalNb = nbMonthsData.reduce((a,b) => a+b, 0); const avgNb = totalNb / nbMonthsData.length; const peakIdx = nbMonthsData.indexOf(Math.max(...nbMonthsData));
+                        document.getElementById('kpi-nb-avg-monthly').innerText = avgNb.toLocaleString(undefined, {maximumFractionDigits:1});
+                        document.getElementById('kpi-nb-peak-month').innerText = sortedMonths[peakIdx];
+                        const latest = nbMonthsData[nbMonthsData.length - 1]; const first = nbMonthsData[0]; const prev = nbMonthsData.length > 1 ? nbMonthsData[nbMonthsData.length - 2] : null;
+                        const getDiff = (curr, baseline) => {
+                            if (!baseline || baseline === 0) return "N/A";
+                            const diff = ((curr - baseline) / baseline) * 100; const icon = diff >= 0 ? 'fa-arrow-up' : 'fa-arrow-down';
+                            return `<span class="${diff >= 0 ? 'text-rose-600' : 'text-emerald-600'} font-bold"><i class="fa-solid ${icon}"></i> ${Math.abs(diff).toFixed(1)}%</span>`;
+                        };
+                        nbTrendBox.innerHTML = `<div class="flex justify-between items-center"><span>Latest Month vs. Previous: ${prev !== null ? getDiff(latest, prev) : 'N/A'}</span><span class="mx-2 text-slate-300">|</span><span>Latest Month vs. First: ${getDiff(latest, first)}</span></div>`;
+                        nbTrendBox.classList.remove('hidden');
+                    }
+                    STATE.charts.nbMonthly = new Chart(document.getElementById('chart-nonbill-monthly'), { type: 'bar', data: { labels: sortedMonths, datasets: [{ label: 'Non-Bill Hours', data: nbMonthsData, backgroundColor: '#fbbf24' }] }, options: { maintainAspectRatio: false, plugins: { legend: {display:false}, datalabels: { color: '#000', formatter: trendFmt } }, onClick: (e, items) => { if(items.length) this.handleChartClick('Month', sortedMonths[items[0].index]); else this.clearChartFilter('Month'); } } });
+                    
+                    const nbMgrs = {}; data.filter(d=>d.isNonBillable).forEach(d => nbMgrs[d['Resource Manager']] = (nbMgrs[d['Resource Manager']]||0) + d.hours);
+                    const topNbMgrs = Object.keys(nbMgrs).sort((a,b)=>nbMgrs[b]-nbMgrs[a]).slice(0, 8);
+                    const nbMgrColors = generateColors(topNbMgrs.length);
+                    const nbMgrDatasets = topNbMgrs.map((mgr, i) => ({ label: mgr, data: sortedMonths.map(m => data.filter(d=>d.isNonBillable && d.Month===m && d['Resource Manager']===mgr).reduce((a,b)=>a+b.hours, 0)), borderColor: nbMgrColors[i], backgroundColor: nbMgrColors[i], fill: false, tension: 0.3 }));
+                    STATE.charts.nbMgrMonthly = new Chart(document.getElementById('chart-nonbill-mgr-monthly'), { type: 'line', data: { labels: sortedMonths, datasets: nbMgrDatasets }, options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 9 } } }, datalabels: { color: '#000', align: 'top', font: { weight: 'bold', size: 9 }, formatter: (v) => v >= 2 ? Math.round(v) : '' } }, onClick: (e, items) => { if(items.length) this.handleChartClick('Resource Manager', topNbMgrs[items[0].datasetIndex]); else this.clearChartFilter('Resource Manager'); } } });
+
+                    const nbRes = {}; data.filter(d=>d.isNonBillable).forEach(d => nbRes[d['Resource Name']] = (nbRes[d['Resource Name']]||0)+d.hours);
+                    const topResNB = Object.entries(nbRes).sort((a,b)=>b[1]-a[1]);
+                    STATE.charts.nbResources = new Chart(document.getElementById('chart-nonbill-resources'), { type: 'bar', data: { labels: topResNB.map(t=>t[0]), datasets: [{data:topResNB.map(t=>t[1]), backgroundColor: '#f59e0b'}] }, options: { maintainAspectRatio: false, plugins: { legend: {display:false}, datalabels: { color: '#000', anchor: 'end', align: 'end', rotation: -90, formatter: (v,ctx) => { const r = ctx.chart.data.labels[ctx.dataIndex]; const cap = this.calculateCapacityFromSet(Array.from(resWeekMap[r]), STATE.globalMaxWeek); return `${v} (${cap>0?(v/cap*100).toFixed(0):0}%)`; } } }, scales: { x: { ticks: { autoSkip: false, maxRotation: 90, minRotation: 90, font: {size: 9} } } }, onClick: (e, items) => { if(items.length) this.handleChartClick('Resource Name', topResNB[items[0].index][0]); else this.clearChartFilter('Resource Name'); } } });
                 }
 
                 if(STATE.currentTab === 'resourcing') {
                     const { attritionData } = this.calculateAttrition();
-                    const topManagers = Array.from(new Set(data.map(d=>d['Resource Manager']))).slice(0,5);
-                    const colors = generateColors(topManagers.length);
-                    const trendSets = topManagers.map((mgr, i) => ({ label:mgr, data:sortedMonths.map(m=>{const u=new Set(); data.forEach(d=>{if(d.Month===m && d['Resource Manager']===mgr) u.add(d['Resource Name']);}); return u.size;}), borderColor:colors[i], fill:false, tension:0.3 }));
-                    STATE.charts.resMonthly = new Chart(document.getElementById('chart-res-monthly'), { type:'line', data:{labels:sortedMonths, datasets:trendSets}, options:{maintainAspectRatio:false, plugins:{legend:{position:'bottom', labels:{boxWidth:10, font:{size:9}}}, datalabels:{align:'top', formatter:v=>v>0?v:''}}, onClick: (e, items) => { if(items.length) this.handleChartClick('Resource Manager', topManagers[items[0].datasetIndex]); else this.clearChartFilter('Resource Manager'); } } });
-
+                    const topMgrs = Array.from(new Set(data.map(d=>d['Resource Manager']))).slice(0,5);
+                    const colors = generateColors(topMgrs.length);
+                    const trendSets = topMgrs.map((mgr, i) => ({ label:mgr, data:sortedMonths.map(m=>{const u=new Set(); data.forEach(d=>{if(d.Month===m && d['Resource Manager']===mgr) u.add(d['Resource Name']);}); return u.size;}), borderColor:colors[i], fill:false, tension:0.3 }));
+                    STATE.charts.resMonthly = new Chart(document.getElementById('chart-res-monthly'), { type:'line', data:{labels:sortedMonths, datasets:trendSets}, options:{maintainAspectRatio:false, plugins:{legend:{position:'bottom', labels:{boxWidth:10, font:{size:9}}}, datalabels:{align:'top', formatter:v=>v>0?v:''}}, onClick: (e, items) => { if(items.length) this.handleChartClick('Resource Manager', topMgrs[items[0].datasetIndex]); else this.clearChartFilter('Resource Manager'); } } });
                     const topAttr = Object.keys(attritionData).sort((a,b)=>attritionData[b].total - attritionData[a].total).slice(0,5);
                     const attrColors = generateColors(topAttr.length);
                     STATE.charts.resAttrition = new Chart(document.getElementById('chart-res-attrition'), { type:'bar', data:{labels:sortedMonths.slice(0,-1), datasets:topAttr.map((mgr, i)=>({label:mgr, data:sortedMonths.slice(0,-1).map(m=>attritionData[mgr].monthly[m]||0), backgroundColor:attrColors[i]}))}, options:{maintainAspectRatio:false, scales:{x:{stacked:true}, y:{stacked:true}}, plugins:{legend:{display:true, position:'bottom', labels:{boxWidth:10, font:{size:9}}}, datalabels:{color:'#000', formatter:v=>v>0?v:''}}, onClick: (e, items) => { if(items.length) this.handleChartClick('Resource Manager', topAttr[items[0].datasetIndex]); else this.clearChartFilter('Resource Manager'); } } });
                     const ytdBody = document.getElementById('attrition-ytd-body'); ytdBody.innerHTML = '';
                     topAttr.forEach(m => ytdBody.innerHTML += `<tr><td class="py-1 truncate max-w-[100px]" title="${m}">${m}</td><td class="py-1 text-right font-bold">${attritionData[m].total}</td></tr>`);
-
                     let latestW = sortedWeeks[sortedWeeks.length-1] || '';
                     document.getElementById('mgr-count-header').innerText = `Current Resource Count by Manager (Week of ${latestW})`;
                     const currMgr = {}; data.forEach(d=>{ if(d.weekString===latestW){ if(!currMgr[d['Resource Manager']]) currMgr[d['Resource Manager']]=new Set(); currMgr[d['Resource Manager']].add(d['Resource Name']); } });
                     const sortedMgrs = Object.entries(currMgr).map(([m,s])=>({m,c:s.size})).sort((a,b)=>a.m.localeCompare(b.m));
-                    STATE.charts.resMgr = new Chart(document.getElementById('chart-res-manager'), { type:'bar', indexAxis:'y', data:{labels:sortedMgrs.map(t=>t.m), datasets:[{data:sortedMgrs.map(t=>t.c), backgroundColor:'#8b5cf6'}]}, options:{maintainAspectRatio:false, plugins:{legend:{display:false}, datalabels:{anchor:'end', align:'end'}}, onClick: (e, items) => { if(items.length) this.handleChartClick('Resource Manager', sortedMgrs[items[0].index].m); else this.clearChartFilter('Resource Manager'); } } });
-
+                    STATE.charts.resMgr = new Chart(document.getElementById('chart-res-manager'), { type:'bar', data:{labels:sortedMgrs.map(t=>t.m), datasets:[{data:sortedMgrs.map(t=>t.c), backgroundColor:'#8b5cf6'}]}, options:{maintainAspectRatio:false, indexAxis: 'y', plugins:{legend:{display:false}, datalabels:{anchor:'end', align:'end'}}, onClick: (e, items) => { if(items.length) this.handleChartClick('Resource Manager', sortedMgrs[items[0].index].m); else this.clearChartFilter('Resource Manager'); } } });
                     const clientStats = {}; data.forEach(d=>{ if(d.isProductive && d.hours > 0){ if(!clientStats[d['Client Name']]) clientStats[d['Client Name']]={h:0,w:new Set()}; clientStats[d['Client Name']].h+=d.hours; clientStats[d['Client Name']].w.add(d.weekString); } });
                     const clientFTEs = Object.entries(clientStats).map(([c,s])=>({c, fte:s.w.size>0?(s.h/(s.w.size*40)):0})).sort((a,b)=>b.fte-a.fte).slice(0,15);
-                    STATE.charts.resClient = new Chart(document.getElementById('chart-res-client'), { type:'bar', indexAxis:'y', data:{labels:clientFTEs.map(t=>t.c), datasets:[{data:clientFTEs.map(t=>t.fte), backgroundColor:'#10b981'}]}, options:{maintainAspectRatio:false, plugins:{legend:{display:false}, datalabels:{formatter:v=>v.toFixed(1)}}, onClick: (e, items) => { if(items.length) this.handleChartClick('Client Name', clientFTEs[items[0].index].c); else this.clearChartFilter('Client Name'); } } });
+                    STATE.charts.resClient = new Chart(document.getElementById('chart-res-client'), { type:'bar', data:{labels:clientFTEs.map(t=>t.c), datasets:[{data:clientFTEs.map(t=>t.fte), backgroundColor:'#10b981'}]}, options:{maintainAspectRatio:false, indexAxis: 'y', plugins:{legend:{display:false}, datalabels:{formatter:v=>v.toFixed(1)}}, onClick: (e, items) => { if(items.length) this.handleChartClick('Client Name', clientFTEs[items[0].index].c); else this.clearChartFilter('Client Name'); } } });
                 }
             }
 
             calculateAttrition() {
-                const data = STATE.filteredData;
-                const sortedMonths = Array.from(new Set(data.map(d=>d.Month))).sort((a,b)=>data.find(r=>r.Month===a)._wDate - data.find(r=>r.Month===b)._wDate);
-                const mgrMonthRes = {};
-                data.forEach(d=>{ const m=d['Resource Manager']; const mth=d.Month; if(!mgrMonthRes[m]) mgrMonthRes[m]={}; if(!mgrMonthRes[m][mth]) mgrMonthRes[m][mth]=new Set(); mgrMonthRes[m][mth].add(d['Resource Name']); });
-                const attritionData = {};
-                Object.keys(mgrMonthRes).forEach(m => {
+                const data = STATE.filteredData; const sortedMonths = Array.from(new Set(data.map(d=>d.Month))).sort((a,b)=>data.find(r=>r.Month===a)._wDate - data.find(r=>r.Month===b)._wDate);
+                const mgrMonthRes = {}; data.forEach(d=>{ const m=d['Resource Manager']; const mth=d.Month; if(!mgrMonthRes[m]) mgrMonthRes[m]={}; if(!mgrMonthRes[m][mth]) mgrMonthRes[m][mth]=new Set(); mgrMonthRes[m][mth].add(d['Resource Name']); });
+                const attritionData = {}; Object.keys(mgrMonthRes).forEach(m => {
                     attritionData[m] = { total: 0, monthly: {} };
                     for(let i=0; i<sortedMonths.length-1; i++) {
                         const curr = sortedMonths[i]; const next = sortedMonths[i+1];
@@ -699,43 +635,28 @@
             }
 
             renderMultiLine(id, key, labels, allSortedWeeks) {
-                const data = STATE.filteredData;
-                const mgrs = Array.from(new Set(data.map(d=>d['Resource Manager']))).slice(0,5);
+                const data = STATE.filteredData; const mgrs = Array.from(new Set(data.map(d=>d['Resource Manager']))).slice(0,5);
                 const datasets = mgrs.map((mgr, i) => {
-                    const mgrResWeekMap = {};
-                    data.filter(d => d['Resource Manager'] === mgr).forEach(d => {
-                        if(!mgrResWeekMap[d['Resource Name']]) mgrResWeekMap[d['Resource Name']] = new Set();
-                        mgrResWeekMap[d['Resource Name']].add(d.weekString);
-                    });
-
+                    const mgrResWeekMap = {}; data.filter(d => d['Resource Manager'] === mgr).forEach(d => { if(!mgrResWeekMap[d['Resource Name']]) mgrResWeekMap[d['Resource Name']] = new Set(); mgrResWeekMap[d['Resource Name']].add(d.weekString); });
                     const row = labels.map(l => {
-                        const subset = data.filter(d=>d['Resource Manager']===mgr && d[key]===l);
-                        const p = subset.reduce((acc,d)=>acc+(d.isProductive?d.hours:0),0);
+                        const subset = data.filter(d=>d['Resource Manager']===mgr && d[key]===l); const p = subset.reduce((acc,d)=>acc+(d.isProductive?d.hours:0),0);
                         let cap = 0;
-                        
                         if (key === 'weekString') {
-                            const wTime = new Date(l).getTime();
-                            Object.entries(mgrResWeekMap).forEach(([r, set]) => {
-                                const times = Array.from(set).map(s=>new Date(s).getTime());
-                                const min = Math.min(...times);
-                                let max = Math.max(...times);
+                            const wTime = new Date(l).getTime(); Object.entries(mgrResWeekMap).forEach(([r, set]) => {
+                                const times = Array.from(set).map(s=>new Date(s).getTime()); const min = Math.min(...times); let max = Math.max(...times);
                                 if (STATE.globalMaxWeek && (new Date(STATE.globalMaxWeek).getTime() - max === 604800000)) max = new Date(STATE.globalMaxWeek).getTime();
                                 if(wTime >= min && wTime <= max) cap += 40;
                             });
-                        } else if (key === 'Month') {
-                            const weeksInMonth = allSortedWeeks.filter(w => new Date(w).toLocaleString('default', { month: 'long', year: 'numeric' }) === l);
-                            weeksInMonth.forEach(w => {
-                                const wTime = new Date(w).getTime();
-                                Object.entries(mgrResWeekMap).forEach(([r, set]) => {
-                                    const times = Array.from(set).map(s=>new Date(s).getTime());
-                                    const min = Math.min(...times);
-                                    let max = Math.max(...times);
+                        } else {
+                            const wsInM = allSortedWeeks.filter(w => new Date(w).toLocaleString('default', { month: 'long', year: 'numeric' }) === l);
+                            wsInM.forEach(w => {
+                                const wTime = new Date(w).getTime(); Object.entries(mgrResWeekMap).forEach(([r, set]) => {
+                                    const times = Array.from(set).map(s=>new Date(s).getTime()); const min = Math.min(...times); let max = Math.max(...times);
                                     if (STATE.globalMaxWeek && (new Date(STATE.globalMaxWeek).getTime() - max === 604800000)) max = new Date(STATE.globalMaxWeek).getTime();
                                     if(wTime >= min && wTime <= max) cap += 40;
                                 });
                             });
                         }
-                        
                         return cap > 0 ? (p/cap*100) : 0;
                     });
                     return { label:mgr, data:row, borderColor:generateColors(5)[i], fill:false, tension:0.3 };
@@ -743,119 +664,86 @@
                 STATE.charts[id] = new Chart(document.getElementById(id), { type:'line', data:{labels, datasets}, options:{maintainAspectRatio:false, plugins:{datalabels:{align: 'top', formatter: (v) => Math.round(v) + '%'}, legend:{position:'bottom', labels:{boxWidth:10, font:{size:9}}}}, onClick: (e, items) => { if(items.length) this.handleChartClick('Resource Manager', mgrs[items[0].datasetIndex]); else this.clearChartFilter('Resource Manager'); } } });
             }
 
-            sortData(key) {
-                if (STATE.sortKey === key) STATE.sortAsc = !STATE.sortAsc; else { STATE.sortKey = key; STATE.sortAsc = true; }
-                this.updateTable();
-            }
+            sortData(key) { if (STATE.sortKey === key) STATE.sortAsc = !STATE.sortAsc; else { STATE.sortKey = key; STATE.sortAsc = true; } this.updateTable(); }
 
             updateTable() {
-                let activeContainer = STATE.currentTab === 'prod' ? document.getElementById('grid-container-prod') : document.getElementById('grid-container-nonprod');
+                let activeContainer;
+                if (STATE.currentTab === 'prod') activeContainer = document.getElementById('grid-container-prod');
+                else if (STATE.currentTab === 'nonprod') activeContainer = document.getElementById('grid-container-nonprod');
+                else if (STATE.currentTab === 'nonbill') activeContainer = document.getElementById('grid-container-nonbill');
                 if (!activeContainer) return;
-                const groupBy = activeContainer.querySelector('.table-group-by').value;
-                const tbody = activeContainer.querySelector('.data-table-body');
-                const thead = activeContainer.querySelector('.table-header-row');
-                const footer = activeContainer.querySelector('.table-footer');
+                const groupBy = activeContainer.querySelector('.table-group-by').value; const tbody = activeContainer.querySelector('.data-table-body');
+                const thead = activeContainer.querySelector('.table-header-row'); const footer = activeContainer.querySelector('.table-footer');
                 tbody.innerHTML = ''; thead.innerHTML = '';
-
-                const isNonProd = STATE.currentTab === 'nonprod';
-                const hourKey = isNonProd ? 'np' : 'p';
-                const hourLabel = isNonProd ? 'Non-Productive Hours' : 'Productive Hours';
-                const utilLabel = isNonProd ? 'Util %' : 'Util %';
-                const hourColor = isNonProd ? 'text-rose-600' : 'text-emerald-600';
-
+                const isNonProd = STATE.currentTab === 'nonprod'; const isNonBill = STATE.currentTab === 'nonbill';
+                let hourKey = 'p'; let hourLabel = 'Productive Hours'; let hourColor = 'text-emerald-600';
+                if (isNonProd) { hourKey = 'np'; hourLabel = 'Non-Productive Hours'; hourColor = 'text-rose-600'; }
+                if (isNonBill) { hourKey = 'nb'; hourLabel = 'Non-Billable Hours'; hourColor = 'text-amber-600'; }
                 if (groupBy === 'none') {
-                    thead.innerHTML = `<th class="px-4 py-2">Week</th><th class="px-4 py-2">Resource</th><th class="px-4 py-2">Project</th><th class="px-4 py-2">Task</th><th class="px-4 py-2 text-right">Hours</th><th class="px-4 py-2 text-center">Type</th>`;
-                    let list = STATE.filteredData.filter(d => isNonProd ? !d.isProductive : d.isProductive);
+                    let extraH = isNonBill ? `<th class="px-4 py-2">Oracle Code</th><th class="px-4 py-2">Client Name</th>` : '';
+                    thead.innerHTML = `<th class="px-4 py-2">Week</th><th class="px-4 py-2">Resource</th><th class="px-4 py-2">Project</th><th class="px-4 py-2">Task</th>${extraH}<th class="px-4 py-2 text-right">Hours</th><th class="px-4 py-2 text-center">Type</th>`;
+                    let list = STATE.filteredData.filter(d => isNonProd ? !d.isProductive : (isNonBill ? d.isNonBillable : d.isProductive));
                     list.slice(0, 150).forEach(r => {
-                        tbody.innerHTML += `<tr class="hover:bg-slate-50"><td class="px-4 py-2">${r.weekString}</td><td class="px-4 py-2">${r['Resource Name']}</td><td class="px-4 py-2">${r['Project Code']}</td><td class="px-4 py-2 truncate max-w-xs">${r['Task Name']}</td><td class="px-4 py-2 text-right font-mono">${r.hours.toFixed(1)}</td><td class="px-4 py-2 text-center"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${r.isProductive ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">${r.isProductive ? 'Productive' : 'Non-Productive'}</span></td></tr>`;
+                        let typeBadge = r.isNonBillable ? 'bg-amber-100 text-amber-700' : (r.isProductive ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700');
+                        let typeText = r.isNonBillable ? 'Non-Billable' : (r.isProductive ? 'Productive' : 'Non-Productive');
+                        let extraC = isNonBill ? `<td class="px-4 py-2">${r['Oracle Code']}</td><td class="px-4 py-2 truncate max-w-xs" title="${r['Client Name']}">${r['Client Name']}</td>` : '';
+                        tbody.innerHTML += `<tr class="hover:bg-slate-50"><td class="px-4 py-2">${r.weekString}</td><td class="px-4 py-2">${r['Resource Name']}</td><td class="px-4 py-2">${r['Project Code']}</td><td class="px-4 py-2 truncate max-w-xs">${r['Task Name']}</td>${extraC}<td class="px-4 py-2 text-right font-mono">${r.hours.toFixed(1)}</td><td class="px-4 py-2 text-center"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${typeBadge}">${typeText}</span></td></tr>`;
                     });
                     footer.innerText = `Showing ${Math.min(150, list.length)} entries.`;
                 } else {
-                    const isTask = groupBy === 'Task Name';
-                    const isProject = groupBy === 'Project Code';
-                    const isClient = groupBy === 'Client Name';
-                    let showCap = !isProject && !isClient;
-                    let showUtil = !isTask && !isProject && !isClient;
-                    
+                    const isTask = groupBy === 'Task Name'; const isProject = groupBy === 'Project Code'; const isClient = groupBy === 'Client Name';
                     thead.innerHTML = `<th class="px-4 py-2 cursor-pointer" onclick="app.sortData('name')">${groupBy}</th>`;
                     if(isProject) thead.innerHTML += `<th class="px-4 py-2">Desc</th>`;
                     if(isTask) thead.innerHTML += `<th class="px-4 py-2">Proj</th><th class="px-4 py-2">Desc</th>`;
+                    if(isNonBill) thead.innerHTML += `<th class="px-4 py-2">Oracle Code</th><th class="px-4 py-2">Client Name</th>`;
                     thead.innerHTML += `<th class="px-4 py-2 text-right cursor-pointer" onclick="app.sortData('${hourKey}')">${hourLabel}</th>`;
-                    if(showCap) thead.innerHTML += `<th class="px-4 py-2 text-right">${isTask ? "Contributors" : "Capacity"}</th>`;
-                    if(showUtil) thead.innerHTML += `<th class="px-4 py-2 text-right cursor-pointer" onclick="app.sortData('util')">${utilLabel}</th>`;
-
-                    const groups = {};
-                    STATE.filteredData.forEach(d => {
-                        const k = d[groupBy];
-                        if(!groups[k]) groups[k] = { name: k, p:0, np:0, resWeeks: {}, desc: '', pcode: new Set(), pdesc: new Set() };
+                    if(!isProject && !isClient) thead.innerHTML += `<th class="px-4 py-2 text-right">${isTask ? "Contributors" : "Capacity"}</th>`;
+                    if(!isTask && !isProject && !isClient) thead.innerHTML += `<th class="px-4 py-2 text-right cursor-pointer" onclick="app.sortData('util')">Util %</th>`;
+                    const groups = {}; STATE.filteredData.forEach(d => {
+                        const k = d[groupBy]; if(!groups[k]) groups[k] = { name: k, p:0, np:0, nb:0, resWeeks: {}, desc: '', pcode: new Set(), pdesc: new Set(), ocode: new Set(), client: new Set() };
                         if(d.isProductive) groups[k].p += d.hours; else groups[k].np += d.hours;
-                        
+                        if(d.isNonBillable) groups[k].nb += d.hours;
                         if(!groups[k].resWeeks[d['Resource Name']]) groups[k].resWeeks[d['Resource Name']] = new Set();
                         groups[k].resWeeks[d['Resource Name']].add(d.weekString);
-
                         if(isProject && !groups[k].desc) groups[k].desc = d['Project Description'];
                         if(isTask) { groups[k].pcode.add(d['Project Code']); groups[k].pdesc.add(d['Project Description']); }
+                        if(isNonBill) { groups[k].ocode.add(d['Oracle Code']); groups[k].client.add(d['Client Name']); }
                     });
-
                     let arr = Object.values(groups).map(g => {
-                        let totalCap = 0;
-                        Object.values(g.resWeeks).forEach(weeks => totalCap += this.calculateCapacityFromSet(Array.from(weeks), STATE.globalMaxWeek));
-                        
-                        const h = g[hourKey];
-                        const u = totalCap > 0 ? (h / totalCap * 100) : 0;
-                        if(isNonProd && h === 0) return null;
-                        if(!isNonProd && h === 0 && totalCap === 0) return null;
-
-                        return { ...g, cap: totalCap, util: u, pcode: Array.from(g.pcode).join(','), pdesc: Array.from(g.pdesc).join(',') };
+                        let totalCap = 0; Object.values(g.resWeeks).forEach(ws => totalCap += this.calculateCapacityFromSet(Array.from(ws), STATE.globalMaxWeek));
+                        if((isNonProd || isNonBill) && g[hourKey] === 0) return null;
+                        if(!isNonProd && !isNonBill && g[hourKey] === 0 && totalCap === 0) return null;
+                        return { ...g, cap: totalCap, util: totalCap > 0 ? (g[hourKey] / totalCap * 100) : 0, pcode: Array.from(g.pcode).join(','), pdesc: Array.from(g.pdesc).join(','), ocode: Array.from(g.ocode).join(','), client: Array.from(g.client).join(',') };
                     }).filter(x => x);
-
                     if (STATE.sortKey) arr.sort((a,b) => {
                         let va = a[STATE.sortKey], vb = b[STATE.sortKey];
                         if(typeof va === 'string') return va.localeCompare(vb) * (STATE.sortAsc ? 1 : -1);
                         return (va - vb) * (STATE.sortAsc ? 1 : -1);
                     });
-
                     arr.forEach(g => {
-                        let extra = '';
-                        if(isProject) extra = `<td class="px-4 py-2 text-slate-500 truncate max-w-xs">${g.desc}</td>`;
-                        if(isTask) extra = `<td class="px-4 py-2 text-slate-500 truncate max-w-xs">${g.pcode}</td><td class="px-4 py-2 text-slate-500 truncate max-w-xs">${g.pdesc}</td>`;
-                        
-                        let c3 = '';
-                        if(showCap) {
-                            if(isTask) {
-                                const names = Object.keys(g.resWeeks);
-                                c3 = `<td class="px-4 py-2 text-right text-slate-500 cursor-help" title="${names.join('\n')}">${names.slice(0,2).join(', ')}${names.length>2?` +${names.length-2}`:''}</td>`;
-                            } else c3 = `<td class="px-4 py-2 text-right text-slate-600">${g.cap}</td>`;
-                        }
-                        let c4 = showUtil ? `<td class="px-4 py-2 text-right font-bold">${g.util.toFixed(1)}%</td>` : '';
-
-                        tbody.innerHTML += `<tr class="hover:bg-slate-50"><td class="px-4 py-2 font-bold truncate max-w-xs" title="${g.name}">${g.name}</td>${extra}<td class="px-4 py-2 text-right ${hourColor} font-mono">${g[hourKey].toFixed(1)}</td>${c3}${c4}</tr>`;
+                        let extra = isProject ? `<td class="px-4 py-2 text-slate-500 truncate max-w-xs">${g.desc}</td>` : isTask ? `<td class="px-4 py-2 text-slate-500 truncate max-w-xs">${g.pcode}</td><td class="px-4 py-2 text-slate-500 truncate max-w-xs">${g.pdesc}</td>` : '';
+                        let nbCols = isNonBill ? `<td class="px-4 py-2 text-slate-500 truncate max-w-xs" title="${g.ocode}">${g.ocode}</td><td class="px-4 py-2 text-slate-500 truncate max-w-xs" title="${g.client}">${g.client}</td>` : '';
+                        let c3 = (!isProject && !isClient) ? (isTask ? `<td class="px-4 py-2 text-right text-slate-500 cursor-help" title="${Object.keys(g.resWeeks).join('\n')}">${Object.keys(g.resWeeks).slice(0,2).join(', ')}${Object.keys(g.resWeeks).length>2?` +${Object.keys(g.resWeeks).length-2}`:''}</td>` : `<td class="px-4 py-2 text-right text-slate-600">${g.cap}</td>`) : '';
+                        let c4 = (!isTask && !isProject && !isClient) ? `<td class="px-4 py-2 text-right font-bold">${g.util.toFixed(1)}%</td>` : '';
+                        tbody.innerHTML += `<tr class="hover:bg-slate-50"><td class="px-4 py-2 font-bold truncate max-w-xs" title="${g.name}">${g.name}</td>${extra}${nbCols}<td class="px-4 py-2 text-right ${hourColor} font-mono">${g[hourKey].toFixed(1)}</td>${c3}${c4}</tr>`;
                     });
-                    footer.innerText = `Aggregated by ${groupBy}`;
                 }
             }
 
             renderRawTable() {
-                const tbody = document.getElementById('raw-table-body');
-                const thead = document.getElementById('raw-table-header');
-                const footer = document.getElementById('raw-table-footer');
-                const search = document.getElementById('raw-table-search').value.toLowerCase();
-                if (!tbody) return;
+                const tbody = document.getElementById('raw-table-body'); const thead = document.getElementById('raw-table-header'); const footer = document.getElementById('raw-table-footer');
+                const search = (document.getElementById('raw-table-search')?.value || '').toLowerCase(); if (!tbody) return;
                 tbody.innerHTML = ''; thead.innerHTML = '';
-
                 let raw = STATE.filteredData;
                 if (STATE.currentTab === 'nonprod') raw = raw.filter(d => !d.isProductive);
+                else if (STATE.currentTab === 'nonbill') raw = raw.filter(d => d.isNonBillable);
                 else if (STATE.currentTab === 'prod') raw = raw.filter(d => d.isProductive);
-                
                 if(search) raw = raw.filter(r => Object.values(r).join(' ').toLowerCase().includes(search));
-
                 CONFIG.requiredColumns.forEach(c => thead.innerHTML += `<th class="px-4 py-3 border-b border-slate-200 bg-slate-50">${c}</th>`);
                 raw.slice(0, 50).forEach(row => {
                     let tr = '<tr class="hover:bg-slate-50">';
                     CONFIG.requiredColumns.forEach(c => {
-                        let val = row[c];
-                        if(c.includes('Date') || c.includes('Week')) val = row.weekString;
-                        if(c === 'Hours Billed') val = parseFloat(val).toFixed(2);
+                        let val = row[c]; if(c === 'Hours Billed') val = parseFloat(val).toFixed(2);
                         tr += `<td class="px-4 py-2 border-b border-slate-100">${val}</td>`;
                     });
                     tbody.innerHTML += tr + '</tr>';
@@ -864,32 +752,24 @@
             }
 
             filterRawTable() { this.renderRawTable(); }
-            
             exportRawCSV() { 
                 const search = document.getElementById('raw-table-search').value.toLowerCase();
                 let raw = STATE.filteredData;
-                
                 if (STATE.currentTab === 'nonprod') raw = raw.filter(d => !d.isProductive);
+                else if (STATE.currentTab === 'nonbill') raw = raw.filter(d => d.isNonBillable);
                 else if (STATE.currentTab === 'prod') raw = raw.filter(d => d.isProductive);
-                
                 if (search) raw = raw.filter(r => Object.values(r).join(' ').toLowerCase().includes(search));
-
-                const d = raw.map(r => { const o = {}; CONFIG.requiredColumns.forEach(c => o[c] = (c==='Week Beginning')?r.weekString:r[c]); return o; });
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(d), "RawData");
+                const d = raw.map(r => { const o = {}; CONFIG.requiredColumns.forEach(c => o[c] = r[c]); return o; });
+                const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(d), "RawData");
                 XLSX.writeFile(wb, "Clarity_Raw_Export.csv");
             }
-            
             exportCSV() { 
-                const d = STATE.filteredData.map(({_id, isProductive, oracleCodeInt, weekString, monthString, _wDate, _normStatus, ...rest}) => rest);
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(d), "Export");
+                const d = STATE.filteredData.map(({_id, isProductive, oracleCodeInt, weekString, monthString, _wDate, _normStatus, isNonBillable, ...rest}) => rest);
+                const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(d), "Export");
                 XLSX.writeFile(wb, "Clarity_Export.csv");
             }
-            
             showError(msg) { document.getElementById('error-message').classList.remove('hidden'); document.getElementById('error-text').innerText = msg; }
         }
-
         const app = new ClarityApp();
     </script>
 </body>
