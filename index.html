@@ -392,18 +392,61 @@
                     
                     dropdown.querySelector('input').onclick = (e) => e.stopPropagation();
                     dropdown.querySelector('input').oninput = (e) => {
-                        const term = e.target.value.toLowerCase();
-                        listContainer.querySelectorAll('.checkbox-item').forEach(item => {
-                            const match = item.innerText.toLowerCase().includes(term);
-                            item.style.display = match ? 'flex' : 'none';
-                            item.setAttribute('data-visible', match);
-                        });
+                        app.updateDropdownOptions();
                     };
 
                     dropdown.appendChild(listContainer); group.appendChild(btn); group.appendChild(dropdown);
                     container.insertBefore(group, insertionPoint);
                 });
+                
+                // Initialize cascading filter state
+                this.updateDropdownOptions();
             }
+
+            updateDropdownOptions() {
+                const order = ['Year', 'Month', 'Week Beginning', 'Resource Manager', 'Resource Name', 'Client Name', 'Project Code', 'Task Name', 'Oracle Code'];
+                
+                order.forEach(key => {
+                    if (!STATE.filterOptions[key]) return;
+                    
+                    // 1. Calculate valid options for this key by ignoring ITS OWN active filters
+                    const partiallyFiltered = STATE.processedData.filter(row => {
+                        for (const [otherKey, activeSet] of Object.entries(STATE.activeFilters)) {
+                            if (otherKey === key) continue; // Ignore self
+                            if (activeSet.size > 0 && !activeSet.has(String(row[otherKey]))) return false;
+                        }
+                        return true;
+                    });
+                    
+                    const validValues = new Set(partiallyFiltered.map(r => String(r[key])));
+                    
+                    // 2. Update the DOM items for this key
+                    const safeKey = key.replace(/[^a-zA-Z0-9]/g, '');
+                    const listContainer = document.getElementById(`list-${safeKey}`);
+                    if (!listContainer) return;
+                    
+                    const searchInput = document.getElementById(`search-${safeKey}`);
+                    const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+                    
+                    listContainer.querySelectorAll('.checkbox-item').forEach(item => {
+                        const cb = item.querySelector('input');
+                        const val = cb.value;
+                        
+                        const matchesSearch = item.innerText.toLowerCase().includes(searchTerm);
+                        // Keep visible if it's cascaded valid OR if it's currently selected (prevents disappearing active selections)
+                        const isCascadedValid = validValues.has(val) || STATE.activeFilters[key].has(val);
+                        
+                        if (isCascadedValid && matchesSearch) {
+                            item.style.display = 'flex';
+                            item.setAttribute('data-visible', 'true');
+                        } else {
+                            item.style.display = 'none';
+                            item.setAttribute('data-visible', 'false');
+                        }
+                    });
+                });
+            }
+
             updateFilterButtonText(btn, key) { const count = STATE.activeFilters[key].size; btn.innerHTML = `${key} ${count > 0 ? `<span class="bg-indigo-600 text-white text-[9px] px-1.5 rounded-full">${count}</span>` : '<i class="fa-solid fa-chevron-down text-[10px] opacity-50"></i>'}`; btn.className = `flex items-center gap-1.5 px-3 py-1 text-xs border rounded-full transition-colors ${count > 0 ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-medium' : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50'}`; }
             toggleDropdown(group) { const d = group.querySelector('.ms-dropdown'); const o = d.classList.contains('show'); this.closeAllDropdowns(); if(!o) { d.classList.add('show'); setTimeout(()=>d.querySelector('input').focus(),50); } }
             closeAllDropdowns() { document.querySelectorAll('.ms-dropdown').forEach(d => d.classList.remove('show')); }
@@ -439,16 +482,15 @@
             filterData() { 
                 const search = document.querySelector('.table-search')?.value.toLowerCase() || '';
                 
-                // FIXED: Removed the dynamic recalculation of STATE.globalMaxWeek here.
-                // The global maximum week must remain locked to the original dataset's boundary 
-                // so that capacity (Trailing Edge) doesn't warp when filtering by a single resource.
-                
                 STATE.filteredData = STATE.processedData.filter(row => {
                     for(const [k, s] of Object.entries(STATE.activeFilters)) if(s.size > 0 && !s.has(String(row[k]))) return false;
                     return search ? Object.values(row).join(' ').toLowerCase().includes(search) : true;
                 });
                 
                 document.getElementById('record-count').innerText = `${STATE.filteredData.length} records`;
+                
+                this.updateDropdownOptions(); // Trigger cascade update
+                
                 this.updateDashboard(); 
             }
 
