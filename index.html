@@ -587,8 +587,8 @@
                 });
 
                 if(STATE.currentTab === 'prod') {
-                    this.renderMultiLine('chart-manager-weekly', 'weekString', sortedWeeks);
-                    this.renderMultiLine('chart-manager-monthly', 'Month', sortedMonths);
+                    this.renderMultiLine('chart-manager-weekly', 'weekString', sortedWeeks, sortedWeeks);
+                    this.renderMultiLine('chart-manager-monthly', 'Month', sortedMonths, sortedWeeks);
                     
                     STATE.charts.monthlyStack = new Chart(document.getElementById('chart-monthly-stack'), { 
                         type: 'bar', data: { labels: sortedMonths, datasets: [{ label: 'Productive Hours', data: sortedMonths.map(m => months[m].p), backgroundColor: '#10b981' }] }, 
@@ -698,15 +698,44 @@
                 return { attritionData };
             }
 
-            renderMultiLine(id, key, labels) {
+            renderMultiLine(id, key, labels, allSortedWeeks) {
                 const data = STATE.filteredData;
                 const mgrs = Array.from(new Set(data.map(d=>d['Resource Manager']))).slice(0,5);
                 const datasets = mgrs.map((mgr, i) => {
+                    const mgrResWeekMap = {};
+                    data.filter(d => d['Resource Manager'] === mgr).forEach(d => {
+                        if(!mgrResWeekMap[d['Resource Name']]) mgrResWeekMap[d['Resource Name']] = new Set();
+                        mgrResWeekMap[d['Resource Name']].add(d.weekString);
+                    });
+
                     const row = labels.map(l => {
                         const subset = data.filter(d=>d['Resource Manager']===mgr && d[key]===l);
                         const p = subset.reduce((acc,d)=>acc+(d.isProductive?d.hours:0),0);
-                        const resInPeriod = new Set(subset.map(d=>d['Resource Name']));
-                        let cap = resInPeriod.size * 40 * (key==='Month'?4:1); 
+                        let cap = 0;
+                        
+                        if (key === 'weekString') {
+                            const wTime = new Date(l).getTime();
+                            Object.entries(mgrResWeekMap).forEach(([r, set]) => {
+                                const times = Array.from(set).map(s=>new Date(s).getTime());
+                                const min = Math.min(...times);
+                                let max = Math.max(...times);
+                                if (STATE.globalMaxWeek && (new Date(STATE.globalMaxWeek).getTime() - max === 604800000)) max = new Date(STATE.globalMaxWeek).getTime();
+                                if(wTime >= min && wTime <= max) cap += 40;
+                            });
+                        } else if (key === 'Month') {
+                            const weeksInMonth = allSortedWeeks.filter(w => new Date(w).toLocaleString('default', { month: 'long', year: 'numeric' }) === l);
+                            weeksInMonth.forEach(w => {
+                                const wTime = new Date(w).getTime();
+                                Object.entries(mgrResWeekMap).forEach(([r, set]) => {
+                                    const times = Array.from(set).map(s=>new Date(s).getTime());
+                                    const min = Math.min(...times);
+                                    let max = Math.max(...times);
+                                    if (STATE.globalMaxWeek && (new Date(STATE.globalMaxWeek).getTime() - max === 604800000)) max = new Date(STATE.globalMaxWeek).getTime();
+                                    if(wTime >= min && wTime <= max) cap += 40;
+                                });
+                            });
+                        }
+                        
                         return cap > 0 ? (p/cap*100) : 0;
                     });
                     return { label:mgr, data:row, borderColor:generateColors(5)[i], fill:false, tension:0.3 };
