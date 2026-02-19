@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workforce & Utilization Intelligence</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .drag-active { border-color: #4f46e5; background-color: #eef2ff; }
+        .custom-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        .ms-dropdown { display: none; }
+        .ms-dropdown.show { display: flex; } 
+        .checkbox-item:hover { background-color: #f3f4f6; }
+        th.sortable:hover { background-color: #e2e8f0; cursor: pointer; }
+        .tab-active { border-bottom: 2px solid #4f46e5; color: #4f46e5; font-weight: 600; }
+    </style>
+</head>
+<body class="text-slate-800 h-screen flex flex-col overflow-hidden">
+
+    <nav class="bg-white border-b border-slate-200 h-14 flex items-center justify-between px-6 shrink-0 z-20 shadow-sm">
+        <div class="flex items-center gap-3">
+            <div class="bg-indigo-600 text-white p-1.5 rounded shadow-md"><i class="fa-solid fa-shield-halved text-sm"></i></div>
+            <div><h1 class="text-lg font-bold text-slate-900 tracking-tight leading-none">Workforce<span class="text-indigo-600">Intelligence</span></h1></div>
+        </div>
+        <div class="flex gap-4">
+            <button onclick="window.location.reload()" class="text-xs text-slate-500 hover:text-red-600 font-medium transition-colors"><i class="fa-solid fa-trash-can mr-1"></i> Reset Session</button>
+        </div>
+    </nav>
+
+    <main class="flex-1 overflow-auto relative bg-slate-50">
+        <!-- UPLOAD VIEW -->
+        <div id="upload-view" class="absolute inset-0 z-10 flex flex-col items-center justify-center p-4">
+            <div class="bg-white p-10 rounded-2xl shadow-xl max-w-2xl w-full text-center border border-slate-100 fade-in">
+                <div class="mb-6 bg-indigo-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto text-indigo-600 text-3xl shadow-inner"><i class="fa-solid fa-file-excel"></i></div>
+                <h2 class="text-2xl font-bold text-slate-900 mb-2">Import Workforce Data</h2>
+                <div class="bg-emerald-50 text-emerald-800 text-xs font-semibold px-4 py-2 rounded-full inline-block mb-6"><i class="fa-solid fa-check-circle mr-1"></i> Data stays on your device.</div>
+                <div id="drop-zone" class="border-2 border-dashed border-slate-300 rounded-xl p-10 transition-all cursor-pointer hover:border-indigo-500 hover:bg-slate-50 group relative">
+                    <input type="file" id="file-input" class="hidden" accept=".xlsx, .xls" />
+                    <div class="pointer-events-none">
+                        <p class="text-slate-600 font-medium group-hover:text-indigo-600 text-lg">Drag & Drop Excel File</p>
+                        <p class="text-sm text-slate-400 mt-2">or click to browse</p>
+                    </div>
+                </div>
+                <div class="mt-8 text-left text-sm text-slate-600 bg-slate-50 p-5 rounded-lg border border-slate-200 shadow-sm w-full max-w-md mx-auto">
+                    <p class="font-bold text-slate-700 mb-3 uppercase tracking-wider text-xs border-b border-slate-200 pb-2">Required Excel Columns (Sequential):</p>
+                    <ol class="list-decimal list-inside space-y-1 font-mono text-xs">
+                        <li>Date</li>
+                        <li>Oracle Code <em class="text-slate-400">(or Oracle Proj ID)</em></li>
+                        <li>Client Name</li>
+                        <li>Project Code</li>
+                        <li>Project Description <em class="text-slate-400">(or Project Name)</em></li>
+                        <li>Resource Name</li>
+                        <li>Resource Manager</li>
+                        <li>Timesheet Status</li>
+                        <li>Week Beginning <span class="text-rose-500 font-sans font-bold">(Monday)</span></li>
+                        <li>Task Name</li>
+                        <li>Hours Billed <em class="text-slate-400">(or Hours)</em></li>
+                    </ol>
+                    <p class="text-[10px] text-slate-400 mt-3 pt-2 border-t border-slate-200">Note: Extra columns (like Role, OBS, Modified Date) are automatically ignored.</p>
+                </div>
+                <div id="error-message" class="hidden mt-6 bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-lg text-left text-sm flex items-start gap-2 animate-pulse"><i class="fa-solid fa-triangle-exclamation mt-0.5"></i><span id="error-text">Error message here</span></div>
+            </div>
+        </div>
+
+        <!-- DASHBOARD VIEW -->
+        <div id="dashboard-view" class="hidden p-4 max-w-[1920px] mx-auto space-y-4 fade-in pb-20">
+            <!-- Filter Bar -->
+            <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-3">
+                <div class="flex flex-wrap items-center gap-2" id="filter-bar">
+                    <div class="text-xs font-bold text-slate-500 uppercase mr-2 flex items-center gap-1"><i class="fa-solid fa-filter"></i> Filters:</div>
+                    <div class="ml-auto flex items-center gap-3 border-l pl-3 border-slate-200">
+                        <span class="text-xs text-slate-400" id="record-count">0 records</span>
+                        <button onclick="app.resetFilters()" class="text-xs font-semibold text-rose-600 hover:text-rose-800 px-2 py-1 rounded transition-colors">Clear Filters</button>
+                    </div>
+                </div>
+            </div>
+            <!-- Tab Navigation -->
+            <div class="bg-white border-b border-slate-200 px-4 flex gap-8 shrink-0 shadow-sm rounded-lg overflow-x-auto">
+                <button onclick="app.setTab('exec')" id="tab-btn-exec" class="py-3 text-sm font-medium tab-active transition-all whitespace-nowrap">Executive Summary</button>
+                <button onclick="app.setTab('prod')" id="tab-btn-prod" class="py-3 text-sm font-medium text-slate-500 transition-all whitespace-nowrap">Productive Analysis</button>
+                <button onclick="app.setTab('nonprod')" id="tab-btn-nonprod" class="py-3 text-sm font-medium text-slate-500 transition-all whitespace-nowrap">Non-Productive Analysis</button>
+                <button onclick="app.setTab('resourcing')" id="tab-btn-resourcing" class="py-3 text-sm font-medium text-slate-500 transition-all whitespace-nowrap">Resourcing Analysis</button>
+            </div>
+
+            <!-- Content -->
+            <div id="tab-content" class="space-y-4">
+                <!-- EXEC -->
+                <div id="sec-exec" class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 border-l-4 border-l-emerald-500"><p class="text-[10px] font-bold text-slate-400 uppercase">Productive Hours</p><h2 class="text-2xl font-bold text-slate-800 mt-0.5" id="kpi-prod-hours">-</h2></div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 border-l-4 border-l-rose-500"><p class="text-[10px] font-bold text-slate-400 uppercase">Non-Productive Hours</p><h2 class="text-2xl font-bold text-slate-800 mt-0.5" id="kpi-non-prod-hours">-</h2></div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 border-l-4 border-l-blue-500"><p class="text-[10px] font-bold text-slate-400 uppercase">Capacity Hours</p><h2 class="text-2xl font-bold text-slate-800 mt-0.5" id="kpi-capacity">-</h2></div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 border-l-4 border-l-indigo-600"><p class="text-[10px] font-bold text-slate-400 uppercase">Utilization</p><h2 class="text-2xl font-bold text-slate-800 mt-0.5" id="kpi-utilization">-</h2></div>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 h-[350px] flex flex-col"><h3 class="font-bold text-slate-800 text-sm mb-2">Overall Weekly Utilization</h3><div class="flex-1 relative min-h-0"><canvas id="chart-trend"></canvas></div></div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 h-[350px] flex flex-col"><h3 class="font-bold text-slate-800 text-sm mb-2">Overall Monthly Utilization</h3><div class="flex-1 relative min-h-0"><canvas id="chart-monthly-trend"></canvas></div></div>
+                    </div>
+                </div>
+                <!-- PROD -->
+                <div id="sec-prod" class="hidden space-y-4">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 h-[350px] flex flex-col"><h3 class="font-bold text-slate-800 text-sm mb-2">Overall Weekly Trend (Productive)</h3><div class="flex-1 relative min-h-0"><canvas id="chart-trend-prod"></canvas></div></div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 h-[350px] flex flex-col"><h3 class="font-bold text-slate-800 text-sm mb-2">Overall Monthly Trend (Productive)</h3><div class="flex-1 relative min-h-0"><canvas id="chart-monthly-trend-prod"></canvas></div></div>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 h-[380px] flex flex-col"><h3 class="font-bold text-slate-800 text-sm mb-2">Weekly Manager Trends</h3><div class="flex-1 relative min-h-0"><canvas id="chart-manager-weekly"></canvas></div></div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 h-[380px] flex flex-col"><h3 class="font-bold text-slate-800 text-sm mb-2">Monthly Manager Trends</h3><div class="flex-1 relative min-h-0"><canvas id="chart-manager-monthly"></canvas></div></div>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 h-[500px] flex flex-col lg:col-span-1"><h3 class="font-bold text-slate-800 text-sm mb-2">Monthly Hours Distribution</h3><div class="flex-1 relative min-h-0"><canvas id="chart-monthly-stack"></canvas></div></div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 flex flex-col lg:col-span-2 h-[500px]">
+                            <div class="flex justify-between items-center mb-2">
+                                <h3 class="font-bold text-slate-800 text-sm">Resource-wise Utilization (All)</h3>
+                                <select onchange="app.setResUtilSort(this.value)" class="text-xs border border-slate-300 rounded px-2 py-1 focus:outline-none focus:border-indigo-500 bg-slate-50 cursor-pointer">
+                                    <option value="alpha">Sort: A-Z</option>
+                                    <option value="desc">Sort: Highest Util</option>
+                                    <option value="asc">Sort: Lowest Util</option>
+                                </select>
+                            </div>
+                            <div id="chart-resources-container" class="flex-1 relative w-full h-full min-h-0"><canvas id="chart-resources"></canvas></div>
+                        </div>
+                    </div>
+                    <div id="grid-container-prod"></div>
+                </div>
+                <!-- NON-PROD -->
+                <div id="sec-nonprod" class="hidden space-y-4">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 h-[350px] flex flex-col"><h3 class="font-bold text-slate-800 text-sm mb-2">Weekly Non-Productive Hours</h3><div class="flex-1 relative min-h-0"><canvas id="chart-nonprod-trend"></canvas></div></div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 h-[350px] flex flex-col"><h3 class="font-bold text-slate-800 text-sm mb-2">Monthly Non-Productive Hours</h3><div class="flex-1 relative min-h-0"><canvas id="chart-nonprod-monthly"></canvas></div></div>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 h-[500px] flex flex-col"><h3 class="font-bold text-slate-800 text-sm mb-2">Task Distribution</h3><div class="flex-1 relative min-h-0"><canvas id="chart-doughnut"></canvas></div></div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 h-[500px] flex flex-col"><h3 class="font-bold text-slate-800 text-sm mb-2">Resource-wise Non-Productive Hours (All)</h3><div class="flex-1 relative min-h-0"><canvas id="chart-nonprod-resources"></canvas></div></div>
+                    </div>
+                    <div id="grid-container-nonprod"></div>
+                </div>
+                <!-- RESOURCING -->
+                <div id="sec-resourcing" class="hidden space-y-4">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 h-[400px] flex flex-col"><h3 class="font-bold text-slate-800 text-sm mb-2">Active Resource Count Trend by Manager (Monthly)</h3><div class="flex-1 relative min-h-0"><canvas id="chart-res-monthly"></canvas></div></div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 h-[400px] flex flex-col">
+                            <div class="flex justify-between items-start mb-2"><h3 class="font-bold text-slate-800 text-sm">Attrition Analysis by Manager</h3><div class="text-[10px] text-slate-400 text-right"><span class="block">Stacked by Manager</span><span class="block">Table = YTD Total</span></div></div>
+                            <div class="flex-1 flex gap-4 h-full min-h-0"><div class="flex-[2] relative min-h-0"><canvas id="chart-res-attrition"></canvas></div><div class="flex-1 overflow-y-auto custom-scrollbar border-l border-slate-100 pl-2"><table class="w-full text-[10px] text-left"><thead class="bg-slate-50 text-slate-500 font-bold sticky top-0"><tr><th class="py-1">Manager</th><th class="py-1 text-right">YTD Left</th></tr></thead><tbody id="attrition-ytd-body" class="divide-y divide-slate-100"></tbody></table></div></div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 h-[600px] flex flex-col"><h3 id="mgr-count-header" class="font-bold text-slate-800 text-sm mb-2">Current Resource Count by Manager (Based on Capacity)</h3><div class="flex-1 relative min-h-0"><canvas id="chart-res-manager"></canvas></div></div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 h-[600px] flex flex-col"><h3 class="font-bold text-slate-800 text-sm mb-2">Resources utilized by Client (based on Productive Hours)</h3><div class="flex-1 relative min-h-0"><canvas id="chart-res-client"></canvas></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RAW DATA GRID -->
+            <div id="raw-data-section" class="mt-8 bg-white rounded-lg shadow-sm border border-slate-200 flex flex-col h-[600px]">
+                <div class="p-3 border-b border-slate-200 flex justify-between items-center bg-slate-100 rounded-t-lg">
+                    <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2"><i class="fa-solid fa-database text-indigo-600"></i> Detailed Raw Data Record</h3>
+                    <div class="flex gap-2"><input type="text" id="raw-table-search" oninput="app.filterRawTable()" class="text-xs border border-slate-300 rounded px-2 py-1 focus:outline-none focus:border-indigo-500 w-48" placeholder="Search raw data..."><button onclick="app.exportRawCSV()" class="bg-indigo-600 text-white px-3 py-1 rounded text-xs hover:bg-indigo-700 transition font-medium"><i class="fa-solid fa-file-csv mr-1"></i>Export</button></div>
+                </div>
+                <div class="overflow-auto custom-scrollbar flex-1 relative"><table class="w-full text-xs text-left text-slate-600 whitespace-nowrap"><thead class="text-xs text-slate-500 uppercase bg-slate-100 sticky top-0 z-10 font-bold border-b border-slate-200"><tr id="raw-table-header"></tr></thead><tbody id="raw-table-body" class="divide-y divide-slate-100"></tbody></table></div><div class="p-2 border-t border-slate-200 text-[10px] text-slate-400 text-center bg-slate-50 rounded-b-lg" id="raw-table-footer"></div>
+            </div>
+
+            <!-- SHARED GRID TEMPLATE -->
+            <div id="shared-grid-template" class="hidden">
+                <div class="bg-white rounded-lg shadow-sm border border-slate-200 flex flex-col h-[600px]">
+                    <div class="p-3 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-lg">
+                        <div class="flex items-center gap-4">
+                            <h3 class="font-bold text-slate-800 text-sm">Summary Data Grid</h3>
+                            <div class="flex items-center gap-2 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm"><label class="text-[10px] font-semibold text-slate-500">Group By:</label><select onchange="app.updateTable()" class="table-group-by text-xs bg-transparent outline-none font-medium text-indigo-700 cursor-pointer"><option value="none">None (Detailed)</option><option value="Resource Name">Resource Name</option><option value="Resource Manager">Resource Manager</option><option value="Task Name">Task Name</option><option value="Project Code">Project Code</option><option value="Client Name">Client Name</option></select></div>
+                        </div>
+                        <div class="flex gap-2"><input type="text" oninput="app.filterData()" class="table-search text-xs border border-slate-300 rounded px-2 py-1 focus:outline-none focus:border-indigo-500 w-48" placeholder="Search grid..."><button onclick="app.exportCSV()" class="bg-emerald-600 text-white px-3 py-1 rounded text-xs hover:bg-emerald-700 transition font-medium"><i class="fa-solid fa-file-csv mr-1"></i>Export</button></div>
+                    </div>
+                    <div class="overflow-auto custom-scrollbar flex-1 relative"><table class="w-full text-xs text-left text-slate-600"><thead class="text-xs text-slate-500 uppercase bg-slate-100 sticky top-0 z-10 shadow-sm font-bold tracking-wide"><tr class="table-header-row"></tr></thead><tbody class="data-table-body divide-y divide-slate-100"></tbody></table></div><div class="p-2 border-t border-slate-200 text-[10px] text-slate-400 text-center bg-slate-50 rounded-b-lg table-footer"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        Chart.register(ChartDataLabels);
+        Chart.defaults.font.family = 'Inter';
+        Chart.defaults.color = '#64748b';
+        Chart.defaults.plugins.datalabels.color = '#000';
+        Chart.defaults.plugins.datalabels.font = { weight: 'bold', size: 10 };
+        Chart.defaults.plugins.datalabels.anchor = 'end';
+        Chart.defaults.plugins.datalabels.align = 'end';
+        Chart.defaults.layout.padding = { top: 20 };
+        Chart.defaults.plugins.datalabels.display = (context) => context.dataset.data[context.dataIndex] > 0 ? 'auto' : false;
+        Chart.defaults.plugins.datalabels.formatter = (value) => (typeof value === 'number' ? Math.round(value) : value);
+        Chart.defaults.onHover = (event, chartElement) => { event.native.target.style.cursor = chartElement.length ? 'pointer' : 'default'; };
+
+        const CONFIG = { requiredColumns: ["Date", "Oracle Code", "Client Name", "Project Code", "Project Description", "Resource Name", "Resource Manager", "Timesheet Status", "Week Beginning", "Task Name", "Hours Billed"], nonProductiveCode: 100002, weeklyCapacity: 40 };
+        const STATE = { rawData: [], processedData: [], filteredData: [], filterOptions: {}, activeFilters: {}, charts: {}, tableGroupBy: 'none', sortKey: null, sortAsc: true, currentTab: 'exec', globalMaxWeek: '', resUtilSort: 'alpha' };
+        function generateColors(count) { const colors = ['#4f46e5', '#ef4444', '#10b981', '#f59e0b', '#3b82f6', '#ec4899', '#8b5cf6', '#06b6d4', '#84cc16', '#64748b']; return Array.from({ length: count }, (_, i) => colors[i % colors.length]); }
+
+        class ClarityApp {
+            constructor() {
+                this.initEventListeners();
+                this.activeDropdown = null;
+                document.addEventListener('click', (e) => { if (!e.target.closest('.filter-group')) this.closeAllDropdowns(); });
+            }
+            initEventListeners() {
+                const dropZone = document.getElementById('drop-zone');
+                const fileInput = document.getElementById('file-input');
+                dropZone.addEventListener('click', () => fileInput.click());
+                ['dragenter', 'dragover'].forEach(e => dropZone.addEventListener(e, (ev) => { ev.preventDefault(); dropZone.classList.add('drag-active'); }));
+                ['dragleave', 'drop'].forEach(e => dropZone.addEventListener(e, (ev) => { ev.preventDefault(); dropZone.classList.remove('drag-active'); }));
+                dropZone.addEventListener('drop', (e) => this.handleFile(e.dataTransfer.files[0]));
+                fileInput.addEventListener('change', (e) => this.handleFile(e.target.files[0]));
+            }
+            setTab(tab) {
+                STATE.currentTab = tab;
+                ['exec', 'prod', 'nonprod', 'resourcing'].forEach(t => {
+                    const sec = document.getElementById(`sec-${t}`);
+                    if(sec) sec.classList.toggle('hidden', t !== tab);
+                    const btn = document.getElementById(`tab-btn-${t}`);
+                    if (btn) { btn.classList.toggle('tab-active', t === tab); btn.classList.toggle('text-slate-500', t !== tab); }
+                });
+                requestAnimationFrame(() => {
+                    this.updateDashboard();
+                    this.updateTable(); 
+                    this.renderRawTable();
+                    Object.values(STATE.charts).forEach(c => c.resize());
+                });
+            }
+            handleFile(file) {
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+                        const firstSheet = workbook.SheetNames[0];
+                        const json = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet], { defval: "" });
+                        this.validateAndTransform(json);
+                        this.initDashboard();
+                    } catch (err) { this.showError(err.message); }
+                };
+                reader.readAsArrayBuffer(file);
+            }
+            validateAndTransform(json) {
+                if (!json || json.length === 0) throw new Error("File is empty.");
+                
+                // Alias Mapping: Maps external Excel column names to internal standard names
+                const ALIAS_MAP = {
+                    "oracle proj id": "oracle code",
+                    "project name": "project description",
+                    "hours": "hours billed"
+                };
+
+                const headers = Object.keys(json[0]).map(h => h.trim().toLowerCase());
+                const mappedHeaders = headers.map(h => ALIAS_MAP[h] || h);
+
+                const missing = CONFIG.requiredColumns.filter(req => !mappedHeaders.includes(req.toLowerCase()));
+                if (missing.length > 0) throw new Error(`Missing Columns: ${missing.join(', ')}`);
+
+                const groupedRows = new Map();
+                json.forEach((row, idx) => {
+                    const safeRow = {};
+                    Object.keys(row).forEach(k => {
+                        const lowerK = k.trim().toLowerCase();
+                        const mappedKey = ALIAS_MAP[lowerK] || lowerK;
+                        const match = CONFIG.requiredColumns.find(rc => rc.toLowerCase() === mappedKey);
+                        if (match) {
+                            safeRow[match] = row[k];
+                        }
+                    });
+
+                    const status = (safeRow['Timesheet Status'] || '').toLowerCase();
+                    if (status.includes('cancelled') || status.includes('returned')) return;
+                    let wDate = safeRow['Week Beginning'];
+                    if (!(wDate instanceof Date)) wDate = new Date(wDate);
+                    if (isNaN(wDate.getTime())) return;
+                    const weekStr = wDate.toISOString().split('T')[0];
+                    const key = `${safeRow['Resource Name']}|${weekStr}`;
+                    if (!groupedRows.has(key)) groupedRows.set(key, []);
+                    safeRow._normStatus = status;
+                    safeRow._wDate = wDate;
+                    safeRow.weekString = weekStr;
+                    groupedRows.get(key).push(safeRow);
+                });
+
+                const deduplicatedData = [];
+                for (const rows of groupedRows.values()) {
+                    const statuses = rows.map(r => r._normStatus);
+                    if (statuses.some(s => s.includes('adjusted'))) {
+                        deduplicatedData.push(...rows.filter(r => r._normStatus.includes('adjusted')));
+                    } else if (statuses.some(s => s.includes('posted'))) {
+                        deduplicatedData.push(...rows.filter(r => r._normStatus.includes('posted')));
+                    } else {
+                        deduplicatedData.push(...rows);
+                    }
+                }
+
+                const processed = [];
+                const distincts = { 'Year': new Set(), 'Month': new Set(), 'Week Beginning': new Set(), 'Client Name': new Set(), 'Project Code': new Set(), 'Resource Manager': new Set(), 'Resource Name': new Set(), 'Task Name': new Set(), 'Oracle Code': new Set() };
+                let maxW = '';
+                
+                deduplicatedData.forEach((safeRow, idx) => {
+                    const wDate = safeRow._wDate;
+                    if (wDate.getDay() !== 1) throw new Error(`Row ${idx+2}: Week Beginning must be a Monday.`);
+                    
+                    const weekStr = wDate.toISOString().split('T')[0];
+                    if(weekStr > maxW) maxW = weekStr;
+                    
+                    const hours = parseFloat(safeRow['Hours Billed']) || 0;
+                    const oracleCode = parseInt(safeRow['Oracle Code']);
+                    const monthStr = wDate.toLocaleString('default', { month: 'short', year: 'numeric' });
+                    const longMonthStr = wDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+                    const yearStr = wDate.getFullYear().toString();
+                    const enriched = { ...safeRow, _id: idx, hours: hours, isProductive: oracleCode !== CONFIG.nonProductiveCode, oracleCodeInt: oracleCode, monthString: monthStr, 'Year': yearStr, 'Month': longMonthStr, 'Week Beginning': weekStr };
+                    Object.keys(distincts).forEach(k => { if(enriched[k]) distincts[k].add(enriched[k]); });
+                    processed.push(enriched);
+                });
+                STATE.globalMaxWeek = maxW;
+                STATE.rawData = processed;
+                STATE.processedData = processed;
+                STATE.filterOptions = distincts;
+                STATE.filteredData = processed;
+            }
+
+            initDashboard() {
+                document.getElementById('upload-view').classList.add('hidden');
+                document.getElementById('dashboard-view').classList.remove('hidden');
+                const gridHtml = document.getElementById('shared-grid-template').innerHTML;
+                document.getElementById('grid-container-prod').innerHTML = gridHtml;
+                document.getElementById('grid-container-nonprod').innerHTML = gridHtml;
+                this.renderMultiSelectFilters();
+                this.setTab('exec');
+            }
+
+            calculateCapacityFromSet(weekStringArray, globalMaxWeek) {
+                const uniqueWeeks = Array.from(new Set(weekStringArray)).sort();
+                if(uniqueWeeks.length === 0) return 0;
+                
+                const minTime = new Date(uniqueWeeks[0]).getTime();
+                let maxTime = new Date(uniqueWeeks[uniqueWeeks.length-1]).getTime();
+                const ONE_WEEK = 604800000;
+                
+                if (globalMaxWeek) {
+                    const globalTime = new Date(globalMaxWeek).getTime();
+                    const diffWeeks = Math.round((globalTime - maxTime) / ONE_WEEK);
+                    if (diffWeeks === 1) {
+                        maxTime = globalTime;
+                    }
+                }
+                
+                const totalWeeks = Math.round((maxTime - minTime) / ONE_WEEK) + 1;
+                return totalWeeks * 40;
+            }
+
+            renderMultiSelectFilters() {
+                const container = document.getElementById('filter-bar');
+                Array.from(container.children).slice(1, container.children.length - 1).forEach(el => el.remove());
+                const insertionPoint = container.lastElementChild;
+                const order = ['Year', 'Month', 'Week Beginning', 'Resource Manager', 'Resource Name', 'Client Name', 'Project Code', 'Task Name', 'Oracle Code'];
+                const keys = Object.keys(STATE.filterOptions).sort((a,b) => order.indexOf(a) - order.indexOf(b));
+
+                keys.forEach(key => {
+                    if (!STATE.activeFilters[key]) STATE.activeFilters[key] = new Set();
+                    const values = Array.from(STATE.filterOptions[key]).sort();
+                    const group = document.createElement('div'); group.className = 'relative filter-group'; 
+                    const safeKey = key.replace(/[^a-zA-Z0-9]/g, '');
+                    const btn = document.createElement('button'); btn.id = `btn-filter-${safeKey}`;
+                    this.updateFilterButtonText(btn, key);
+                    btn.onclick = (e) => { e.stopPropagation(); this.toggleDropdown(group); };
+                    
+                    const dropdown = document.createElement('div');
+                    dropdown.className = 'ms-dropdown absolute top-full left-0 mt-1 w-64 bg-white border border-slate-200 shadow-xl rounded-lg z-50 p-2 hidden max-h-[22rem] flex-col';
+                    dropdown.innerHTML = `<div class="flex justify-between items-center mb-2 px-1 pb-1 border-b border-slate-100 shrink-0"><div class="flex gap-2"><span class="text-[9px] cursor-pointer text-indigo-600 font-bold hover:underline" onclick="app.setFilterAll('${key}', true, '${safeKey}')">All</span><span class="text-[9px] cursor-pointer text-rose-600 font-bold hover:underline" onclick="app.setFilterAll('${key}', false, '${safeKey}')">Clear</span></div><button class="bg-indigo-600 text-white text-[9px] px-2 py-0.5 rounded hover:bg-indigo-700" onclick="app.closeAllDropdowns()">Done</button></div><div class="px-1 mb-2 shrink-0"><input type="text" id="search-${safeKey}" placeholder="Search..." class="w-full text-xs border border-slate-200 rounded px-2 py-1.5 focus:outline-none focus:border-indigo-500 bg-slate-50"></div>`;
+                    
+                    const listContainer = document.createElement('div');
+                    listContainer.className = 'overflow-y-auto min-h-0 flex-1 custom-scrollbar'; listContainer.id = `list-${safeKey}`;
+                    values.forEach(val => {
+                        const label = document.createElement('label'); label.className = 'checkbox-item flex items-center gap-2 p-1 rounded cursor-pointer text-xs text-slate-700'; label.setAttribute('data-visible', 'true'); 
+                        label.innerHTML = `<input type="checkbox" value="${val}" ${STATE.activeFilters[key].has(val)?'checked':''} onchange="app.toggleFilterValue('${key}', '${val}', this.checked)" class="rounded text-indigo-600 w-3 h-3"><span class="truncate">${val}</span>`;
+                        listContainer.appendChild(label);
+                    });
+                    
+                    dropdown.querySelector('input').onclick = (e) => e.stopPropagation();
+                    dropdown.querySelector('input').oninput = (e) => {
+                        const term = e.target.value.toLowerCase();
+                        listContainer.querySelectorAll('.checkbox-item').forEach(item => {
+                            const match = item.innerText.toLowerCase().includes(term);
+                            item.style.display = match ? 'flex' : 'none';
+                            item.setAttribute('data-visible', match);
+                        });
+                    };
+
+                    dropdown.appendChild(listContainer); group.appendChild(btn); group.appendChild(dropdown);
+                    container.insertBefore(group, insertionPoint);
+                });
+            }
+            updateFilterButtonText(btn, key) { const count = STATE.activeFilters[key].size; btn.innerHTML = `${key} ${count > 0 ? `<span class="bg-indigo-600 text-white text-[9px] px-1.5 rounded-full">${count}</span>` : '<i class="fa-solid fa-chevron-down text-[10px] opacity-50"></i>'}`; btn.className = `flex items-center gap-1.5 px-3 py-1 text-xs border rounded-full transition-colors ${count > 0 ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-medium' : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50'}`; }
+            toggleDropdown(group) { const d = group.querySelector('.ms-dropdown'); const o = d.classList.contains('show'); this.closeAllDropdowns(); if(!o) { d.classList.add('show'); setTimeout(()=>d.querySelector('input').focus(),50); } }
+            closeAllDropdowns() { document.querySelectorAll('.ms-dropdown').forEach(d => d.classList.remove('show')); }
+            
+            // Handles explicit clearing from background clicks
+            clearChartFilter(filterKey) {
+                if (STATE.activeFilters[filterKey] && STATE.activeFilters[filterKey].size > 0) {
+                    STATE.activeFilters[filterKey].clear();
+                    this.renderMultiSelectFilters();
+                    this.filterData();
+                }
+            }
+
+            handleChartClick(filterKey, value) {
+                if (!STATE.activeFilters[filterKey]) STATE.activeFilters[filterKey] = new Set();
+                const valStr = String(value);
+                
+                if (STATE.activeFilters[filterKey].has(valStr) && STATE.activeFilters[filterKey].size === 1) {
+                    STATE.activeFilters[filterKey].clear();
+                } else {
+                    STATE.activeFilters[filterKey].clear();
+                    STATE.activeFilters[filterKey].add(valStr);
+                }
+                
+                this.renderMultiSelectFilters();
+                this.filterData();
+            }
+
+            toggleFilterValue(key, val, checked) { if(checked) STATE.activeFilters[key].add(val); else STATE.activeFilters[key].delete(val); this.updateFilterButtonText(document.getElementById(`btn-filter-${key.replace(/[^a-zA-Z0-9]/g, '')}`), key); this.filterData(); }
+            setFilterAll(key, selectAll, safeKey) { const list = document.getElementById(`list-${safeKey}`); list.querySelectorAll('.checkbox-item[data-visible="true"] input').forEach(cb => { cb.checked = selectAll; if(selectAll) STATE.activeFilters[key].add(cb.value); else STATE.activeFilters[key].delete(cb.value); }); this.updateFilterButtonText(document.getElementById(`btn-filter-${safeKey}`), key); this.filterData(); }
+            resetFilters() { Object.keys(STATE.activeFilters).forEach(k => STATE.activeFilters[k].clear()); this.renderMultiSelectFilters(); this.filterData(); }
+            
+            filterData() { 
+                const search = document.querySelector('.table-search')?.value.toLowerCase() || '';
+                
+                // FIXED: Removed the dynamic recalculation of STATE.globalMaxWeek here.
+                // The global maximum week must remain locked to the original dataset's boundary 
+                // so that capacity (Trailing Edge) doesn't warp when filtering by a single resource.
+                
+                STATE.filteredData = STATE.processedData.filter(row => {
+                    for(const [k, s] of Object.entries(STATE.activeFilters)) if(s.size > 0 && !s.has(String(row[k]))) return false;
+                    return search ? Object.values(row).join(' ').toLowerCase().includes(search) : true;
+                });
+                
+                document.getElementById('record-count').innerText = `${STATE.filteredData.length} records`;
+                this.updateDashboard(); 
+            }
+
+            setResUtilSort(val) {
+                STATE.resUtilSort = val;
+                this.renderCharts();
+            }
+
+            updateDashboard() {
+                const data = STATE.filteredData;
+                let p = 0, np = 0;
+                const resourceMap = {}; 
+                data.forEach(d => {
+                    if (d.isProductive) p += d.hours; else np += d.hours;
+                    if(!resourceMap[d['Resource Name']]) resourceMap[d['Resource Name']] = new Set();
+                    resourceMap[d['Resource Name']].add(d.weekString);
+                });
+
+                let totalCap = 0;
+                Object.values(resourceMap).forEach(weekSet => totalCap += this.calculateCapacityFromSet(Array.from(weekSet), STATE.globalMaxWeek));
+                const util = totalCap > 0 ? (p / totalCap * 100) : 0;
+
+                const fmt = (n) => n.toLocaleString(undefined, { maximumFractionDigits: 1 });
+                document.getElementById('kpi-prod-hours').innerText = fmt(p);
+                document.getElementById('kpi-non-prod-hours').innerText = fmt(np);
+                document.getElementById('kpi-capacity').innerText = fmt(totalCap);
+                document.getElementById('kpi-utilization').innerText = util.toFixed(1) + '%';
+                this.renderCharts();
+                this.updateTable(); 
+                this.renderRawTable();
+            }
+
+            renderCharts() {
+                Object.values(STATE.charts).forEach(c => c?.destroy());
+                const data = STATE.filteredData;
+                const commonConfig = { maintainAspectRatio: false, plugins: { datalabels: { formatter: (v) => v.toFixed(0) + '%' } } };
+
+                const weeks = {};
+                const months = {};
+                const resWeekMap = {}; 
+
+                data.forEach(d => {
+                    if(!resWeekMap[d['Resource Name']]) resWeekMap[d['Resource Name']] = new Set();
+                    resWeekMap[d['Resource Name']].add(d.weekString);
+
+                    if(!weeks[d.weekString]) weeks[d.weekString] = { p:0, np:0 };
+                    if(d.isProductive) weeks[d.weekString].p += d.hours; else weeks[d.weekString].np += d.hours;
+
+                    if(!months[d.Month]) months[d.Month] = { p:0, np:0, firstDate: d._wDate };
+                    if(d.isProductive) months[d.Month].p += d.hours; else months[d.Month].np += d.hours;
+                    if(d._wDate < months[d.Month].firstDate) months[d.Month].firstDate = d._wDate;
+                });
+
+                const sortedWeeks = Object.keys(weeks).sort();
+                const sortedMonths = Object.keys(months).sort((a,b) => months[a].firstDate - months[b].firstDate);
+
+                const weekUtilData = sortedWeeks.map(w => {
+                    let wCap = 0;
+                    Object.entries(resWeekMap).forEach(([r, set]) => {
+                         const wTime = new Date(w).getTime();
+                         const times = Array.from(set).map(s=>new Date(s).getTime());
+                         const min = Math.min(...times);
+                         let max = Math.max(...times);
+                         if (STATE.globalMaxWeek && (new Date(STATE.globalMaxWeek).getTime() - max === 604800000)) max = new Date(STATE.globalMaxWeek).getTime();
+                         if(wTime >= min && wTime <= max) wCap += 40;
+                    });
+                    return wCap > 0 ? (weeks[w].p / wCap * 100) : 0;
+                });
+
+                const monthUtilData = sortedMonths.map(m => {
+                    let mCap = 0;
+                    const weeksInMonth = sortedWeeks.filter(w => new Date(w).toLocaleString('default', { month: 'long', year: 'numeric' }) === m);
+                    weeksInMonth.forEach(w => {
+                        const wTime = new Date(w).getTime();
+                         Object.entries(resWeekMap).forEach(([r, set]) => {
+                             const times = Array.from(set).map(s=>new Date(s).getTime());
+                             const min = Math.min(...times);
+                             let max = Math.max(...times);
+                             if (STATE.globalMaxWeek && (new Date(STATE.globalMaxWeek).getTime() - max === 604800000)) max = new Date(STATE.globalMaxWeek).getTime();
+                             if(wTime >= min && wTime <= max) mCap += 40;
+                         });
+                    });
+                    return mCap > 0 ? (months[m].p / mCap * 100) : 0;
+                });
+
+                ['chart-trend', 'chart-trend-prod'].forEach(id => {
+                    const el = document.getElementById(id); if(!el) return;
+                    STATE.charts[id] = new Chart(el, { type: 'line', data: { labels: sortedWeeks, datasets: [{ label: 'Utilization %', data: weekUtilData, borderColor: '#4f46e5', tension: 0.3 }] }, options: { ...commonConfig, onClick: (e, items) => { if(items.length) this.handleChartClick('Week Beginning', sortedWeeks[items[0].index]); else this.clearChartFilter('Week Beginning'); } } });
+                });
+                
+                ['chart-monthly-trend', 'chart-monthly-trend-prod'].forEach(id => {
+                    const el = document.getElementById(id); if(!el) return;
+                    STATE.charts[id] = new Chart(el, { type: 'line', data: { labels: sortedMonths, datasets: [{ label: 'Utilization %', data: monthUtilData, borderColor: '#10b981', tension: 0.3 }] }, options: { ...commonConfig, onClick: (e, items) => { if(items.length) this.handleChartClick('Month', sortedMonths[items[0].index]); else this.clearChartFilter('Month'); } } });
+                });
+
+                if(STATE.currentTab === 'prod') {
+                    this.renderMultiLine('chart-manager-weekly', 'weekString', sortedWeeks);
+                    this.renderMultiLine('chart-manager-monthly', 'Month', sortedMonths);
+                    
+                    STATE.charts.monthlyStack = new Chart(document.getElementById('chart-monthly-stack'), { 
+                        type: 'bar', data: { labels: sortedMonths, datasets: [{ label: 'Productive Hours', data: sortedMonths.map(m => months[m].p), backgroundColor: '#10b981' }] }, 
+                        options: { maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true } }, plugins: { datalabels: { formatter: Math.round, color: '#000' } }, onClick: (e, items) => { if(items.length) this.handleChartClick('Month', sortedMonths[items[0].index]); else this.clearChartFilter('Month'); } } 
+                    });
+
+                    const resStats = [];
+                    Object.entries(resWeekMap).forEach(([r, set]) => {
+                        const cap = this.calculateCapacityFromSet(Array.from(set), STATE.globalMaxWeek);
+                        const p = data.filter(d => d['Resource Name'] === r && d.isProductive).reduce((a,b) => a + b.hours, 0);
+                        const u = cap > 0 ? (p / cap * 100) : 0;
+                        resStats.push({ n: r, u });
+                    });
+                    
+                    resStats.sort((a,b) => {
+                        if (STATE.resUtilSort === 'desc') return b.u - a.u;
+                        if (STATE.resUtilSort === 'asc') return a.u - b.u;
+                        return a.n.localeCompare(b.n);
+                    });
+
+                    STATE.charts.res = new Chart(document.getElementById('chart-resources'), {
+                        type: 'bar', indexAxis: 'x',
+                        data: { labels: resStats.map(r => r.n), datasets: [{ data: resStats.map(r => r.u), backgroundColor: resStats.map(r => r.u >= 80 ? '#10b981' : r.u >= 70 ? '#facc15' : '#ef4444') }] },
+                        options: { maintainAspectRatio: false, plugins: { legend: { display: false }, datalabels: { color: '#000', anchor: 'end', align: 'end', rotation: -90, formatter: v=>v.toFixed(0)+'%'} }, scales: { x: { ticks: { autoSkip: false, maxRotation: 90, minRotation: 90, font: {size: 9} } }, y: { max: 100 } }, onClick: (e, items) => { if(items.length) this.handleChartClick('Resource Name', resStats[items[0].index].n); else this.clearChartFilter('Resource Name'); } }
+                    });
+                }
+
+                if(STATE.currentTab === 'nonprod') {
+                    const npTasks = {}; data.filter(d=>!d.isProductive).forEach(d => npTasks[d['Task Name']] = (npTasks[d['Task Name']]||0) + d.hours);
+                    const topNP = Object.entries(npTasks).sort((a,b)=>b[1]-a[1]).slice(0,6);
+                    STATE.charts.doughnut = new Chart(document.getElementById('chart-doughnut'), { 
+                        type: 'doughnut', 
+                        data: { labels: topNP.map(t=>t[0]), datasets: [{data:topNP.map(t=>t[1]), backgroundColor: generateColors(6)}] }, 
+                        options: { 
+                            maintainAspectRatio: false, 
+                            layout: { padding: 25 },
+                            plugins: { 
+                                legend: { position: 'bottom', labels: { padding: 20, boxWidth: 12, font: { size: 10 } } },
+                                datalabels: { 
+                                    anchor: 'center', align: 'center', color: '#ffffff', font: { weight: 'bold', size: 10 },
+                                    formatter: (v,ctx) => {
+                                        let pct = (v/ctx.dataset.data.reduce((a,b)=>a+b,0)*100).toFixed(0);
+                                        return pct >= 5 ? `${v}\n(${pct}%)` : ''; 
+                                    } 
+                                } 
+                            }, 
+                            onClick: (e, items) => { if(items.length) this.handleChartClick('Task Name', topNP[items[0].index][0]); else this.clearChartFilter('Task Name'); } 
+                        } 
+                    });
+
+                    const trendFmt = (v, ctx) => {
+                        const l = ctx.chart.data.labels[ctx.dataIndex];
+                        const tot = (weeks[l]?.p || 0) + (weeks[l]?.np || 0) || (months[l]?.p || 0) + (months[l]?.np || 0);
+                        return `${v} (${tot>0?(v/tot*100).toFixed(0):0}%)`;
+                    };
+                    STATE.charts.npTrend = new Chart(document.getElementById('chart-nonprod-trend'), { type: 'bar', data: { labels: sortedWeeks, datasets: [{ label: 'NP Hours', data: sortedWeeks.map(w=>weeks[w].np), backgroundColor: '#f43f5e' }] }, options: { maintainAspectRatio: false, plugins: { legend: {display:false}, datalabels: { color: '#000', formatter: trendFmt } }, onClick: (e, items) => { if(items.length) this.handleChartClick('Week Beginning', sortedWeeks[items[0].index]); else this.clearChartFilter('Week Beginning'); } } });
+                    
+                    STATE.charts.npMonthly = new Chart(document.getElementById('chart-nonprod-monthly'), { type: 'bar', data: { labels: sortedMonths, datasets: [{ label: 'NP Hours', data: sortedMonths.map(m=>months[m].np), backgroundColor: '#fb7185' }] }, options: { maintainAspectRatio: false, plugins: { legend: {display:false}, datalabels: { color: '#000', formatter: trendFmt } }, onClick: (e, items) => { if(items.length) this.handleChartClick('Month', sortedMonths[items[0].index]); else this.clearChartFilter('Month'); } } });
+                    
+                    const npRes = {}; data.filter(d=>!d.isProductive).forEach(d => npRes[d['Resource Name']] = (npRes[d['Resource Name']]||0)+d.hours);
+                    const topResNP = Object.entries(npRes).sort((a,b)=>b[1]-a[1]);
+                    STATE.charts.npResources = new Chart(document.getElementById('chart-nonprod-resources'), { type: 'bar', indexAxis: 'x', data: { labels: topResNP.map(t=>t[0]), datasets: [{data:topResNP.map(t=>t[1]), backgroundColor: '#f43f5e'}] }, options: { maintainAspectRatio: false, plugins: { legend: {display:false}, datalabels: { color: '#000', anchor: 'end', align: 'end', rotation: -90, formatter: (v,ctx) => {
+                        const r = ctx.chart.data.labels[ctx.dataIndex]; const cap = this.calculateCapacityFromSet(Array.from(resWeekMap[r]), STATE.globalMaxWeek); return `${v} (${cap>0?(v/cap*100).toFixed(0):0}%)`;
+                    } } }, scales: { x: { ticks: { autoSkip: false, maxRotation: 90, minRotation: 90, font: {size: 9} } } }, onClick: (e, items) => { if(items.length) this.handleChartClick('Resource Name', topResNP[items[0].index][0]); else this.clearChartFilter('Resource Name'); } } });
+                }
+
+                if(STATE.currentTab === 'resourcing') {
+                    const { attritionData } = this.calculateAttrition();
+                    const topManagers = Array.from(new Set(data.map(d=>d['Resource Manager']))).slice(0,5);
+                    const colors = generateColors(topManagers.length);
+                    const trendSets = topManagers.map((mgr, i) => ({ label:mgr, data:sortedMonths.map(m=>{const u=new Set(); data.forEach(d=>{if(d.Month===m && d['Resource Manager']===mgr) u.add(d['Resource Name']);}); return u.size;}), borderColor:colors[i], fill:false, tension:0.3 }));
+                    STATE.charts.resMonthly = new Chart(document.getElementById('chart-res-monthly'), { type:'line', data:{labels:sortedMonths, datasets:trendSets}, options:{maintainAspectRatio:false, plugins:{legend:{position:'bottom', labels:{boxWidth:10, font:{size:9}}}, datalabels:{align:'top', formatter:v=>v>0?v:''}}, onClick: (e, items) => { if(items.length) this.handleChartClick('Resource Manager', topManagers[items[0].datasetIndex]); else this.clearChartFilter('Resource Manager'); } } });
+
+                    const topAttr = Object.keys(attritionData).sort((a,b)=>attritionData[b].total - attritionData[a].total).slice(0,5);
+                    const attrColors = generateColors(topAttr.length);
+                    STATE.charts.resAttrition = new Chart(document.getElementById('chart-res-attrition'), { type:'bar', data:{labels:sortedMonths.slice(0,-1), datasets:topAttr.map((mgr, i)=>({label:mgr, data:sortedMonths.slice(0,-1).map(m=>attritionData[mgr].monthly[m]||0), backgroundColor:attrColors[i]}))}, options:{maintainAspectRatio:false, scales:{x:{stacked:true}, y:{stacked:true}}, plugins:{legend:{display:true, position:'bottom', labels:{boxWidth:10, font:{size:9}}}, datalabels:{color:'#000', formatter:v=>v>0?v:''}}, onClick: (e, items) => { if(items.length) this.handleChartClick('Resource Manager', topAttr[items[0].datasetIndex]); else this.clearChartFilter('Resource Manager'); } } });
+                    const ytdBody = document.getElementById('attrition-ytd-body'); ytdBody.innerHTML = '';
+                    topAttr.forEach(m => ytdBody.innerHTML += `<tr><td class="py-1 truncate max-w-[100px]" title="${m}">${m}</td><td class="py-1 text-right font-bold">${attritionData[m].total}</td></tr>`);
+
+                    let latestW = sortedWeeks[sortedWeeks.length-1] || '';
+                    document.getElementById('mgr-count-header').innerText = `Current Resource Count by Manager (Week of ${latestW})`;
+                    const currMgr = {}; data.forEach(d=>{ if(d.weekString===latestW){ if(!currMgr[d['Resource Manager']]) currMgr[d['Resource Manager']]=new Set(); currMgr[d['Resource Manager']].add(d['Resource Name']); } });
+                    const sortedMgrs = Object.entries(currMgr).map(([m,s])=>({m,c:s.size})).sort((a,b)=>a.m.localeCompare(b.m));
+                    STATE.charts.resMgr = new Chart(document.getElementById('chart-res-manager'), { type:'bar', indexAxis:'y', data:{labels:sortedMgrs.map(t=>t.m), datasets:[{data:sortedMgrs.map(t=>t.c), backgroundColor:'#8b5cf6'}]}, options:{maintainAspectRatio:false, plugins:{legend:{display:false}, datalabels:{anchor:'end', align:'end'}}, onClick: (e, items) => { if(items.length) this.handleChartClick('Resource Manager', sortedMgrs[items[0].index].m); else this.clearChartFilter('Resource Manager'); } } });
+
+                    const clientStats = {}; data.forEach(d=>{ if(d.isProductive && d.hours > 0){ if(!clientStats[d['Client Name']]) clientStats[d['Client Name']]={h:0,w:new Set()}; clientStats[d['Client Name']].h+=d.hours; clientStats[d['Client Name']].w.add(d.weekString); } });
+                    const clientFTEs = Object.entries(clientStats).map(([c,s])=>({c, fte:s.w.size>0?(s.h/(s.w.size*40)):0})).sort((a,b)=>b.fte-a.fte).slice(0,15);
+                    STATE.charts.resClient = new Chart(document.getElementById('chart-res-client'), { type:'bar', indexAxis:'y', data:{labels:clientFTEs.map(t=>t.c), datasets:[{data:clientFTEs.map(t=>t.fte), backgroundColor:'#10b981'}]}, options:{maintainAspectRatio:false, plugins:{legend:{display:false}, datalabels:{formatter:v=>v.toFixed(1)}}, onClick: (e, items) => { if(items.length) this.handleChartClick('Client Name', clientFTEs[items[0].index].c); else this.clearChartFilter('Client Name'); } } });
+                }
+            }
+
+            calculateAttrition() {
+                const data = STATE.filteredData;
+                const sortedMonths = Array.from(new Set(data.map(d=>d.Month))).sort((a,b)=>data.find(r=>r.Month===a)._wDate - data.find(r=>r.Month===b)._wDate);
+                const mgrMonthRes = {};
+                data.forEach(d=>{ const m=d['Resource Manager']; const mth=d.Month; if(!mgrMonthRes[m]) mgrMonthRes[m]={}; if(!mgrMonthRes[m][mth]) mgrMonthRes[m][mth]=new Set(); mgrMonthRes[m][mth].add(d['Resource Name']); });
+                const attritionData = {};
+                Object.keys(mgrMonthRes).forEach(m => {
+                    attritionData[m] = { total: 0, monthly: {} };
+                    for(let i=0; i<sortedMonths.length-1; i++) {
+                        const curr = sortedMonths[i]; const next = sortedMonths[i+1];
+                        const sCurr = mgrMonthRes[m][curr] || new Set(); const sNext = mgrMonthRes[m][next] || new Set();
+                        let left = 0; sCurr.forEach(r => { if(!sNext.has(r)) left++; });
+                        if(left > 0) { attritionData[m].monthly[curr]=left; attritionData[m].total+=left; }
+                    }
+                });
+                return { attritionData };
+            }
+
+            renderMultiLine(id, key, labels) {
+                const data = STATE.filteredData;
+                const mgrs = Array.from(new Set(data.map(d=>d['Resource Manager']))).slice(0,5);
+                const datasets = mgrs.map((mgr, i) => {
+                    const row = labels.map(l => {
+                        const subset = data.filter(d=>d['Resource Manager']===mgr && d[key]===l);
+                        const p = subset.reduce((acc,d)=>acc+(d.isProductive?d.hours:0),0);
+                        const resInPeriod = new Set(subset.map(d=>d['Resource Name']));
+                        let cap = resInPeriod.size * 40 * (key==='Month'?4:1); 
+                        return cap > 0 ? (p/cap*100) : 0;
+                    });
+                    return { label:mgr, data:row, borderColor:generateColors(5)[i], fill:false, tension:0.3 };
+                });
+                STATE.charts[id] = new Chart(document.getElementById(id), { type:'line', data:{labels, datasets}, options:{maintainAspectRatio:false, plugins:{datalabels:{align: 'top', formatter: (v) => Math.round(v) + '%'}, legend:{position:'bottom', labels:{boxWidth:10, font:{size:9}}}}, onClick: (e, items) => { if(items.length) this.handleChartClick('Resource Manager', mgrs[items[0].datasetIndex]); else this.clearChartFilter('Resource Manager'); } } });
+            }
+
+            sortData(key) {
+                if (STATE.sortKey === key) STATE.sortAsc = !STATE.sortAsc; else { STATE.sortKey = key; STATE.sortAsc = true; }
+                this.updateTable();
+            }
+
+            updateTable() {
+                let activeContainer = STATE.currentTab === 'prod' ? document.getElementById('grid-container-prod') : document.getElementById('grid-container-nonprod');
+                if (!activeContainer) return;
+                const groupBy = activeContainer.querySelector('.table-group-by').value;
+                const tbody = activeContainer.querySelector('.data-table-body');
+                const thead = activeContainer.querySelector('.table-header-row');
+                const footer = activeContainer.querySelector('.table-footer');
+                tbody.innerHTML = ''; thead.innerHTML = '';
+
+                const isNonProd = STATE.currentTab === 'nonprod';
+                const hourKey = isNonProd ? 'np' : 'p';
+                const hourLabel = isNonProd ? 'Non-Productive Hours' : 'Productive Hours';
+                const utilLabel = isNonProd ? 'Util %' : 'Util %';
+                const hourColor = isNonProd ? 'text-rose-600' : 'text-emerald-600';
+
+                if (groupBy === 'none') {
+                    thead.innerHTML = `<th class="px-4 py-2">Week</th><th class="px-4 py-2">Resource</th><th class="px-4 py-2">Project</th><th class="px-4 py-2">Task</th><th class="px-4 py-2 text-right">Hours</th><th class="px-4 py-2 text-center">Type</th>`;
+                    let list = STATE.filteredData.filter(d => isNonProd ? !d.isProductive : d.isProductive);
+                    list.slice(0, 150).forEach(r => {
+                        tbody.innerHTML += `<tr class="hover:bg-slate-50"><td class="px-4 py-2">${r.weekString}</td><td class="px-4 py-2">${r['Resource Name']}</td><td class="px-4 py-2">${r['Project Code']}</td><td class="px-4 py-2 truncate max-w-xs">${r['Task Name']}</td><td class="px-4 py-2 text-right font-mono">${r.hours.toFixed(1)}</td><td class="px-4 py-2 text-center"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${r.isProductive ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">${r.isProductive ? 'Productive' : 'Non-Productive'}</span></td></tr>`;
+                    });
+                    footer.innerText = `Showing ${Math.min(150, list.length)} entries.`;
+                } else {
+                    const isTask = groupBy === 'Task Name';
+                    const isProject = groupBy === 'Project Code';
+                    const isClient = groupBy === 'Client Name';
+                    let showCap = !isProject && !isClient;
+                    let showUtil = !isTask && !isProject && !isClient;
+                    
+                    thead.innerHTML = `<th class="px-4 py-2 cursor-pointer" onclick="app.sortData('name')">${groupBy}</th>`;
+                    if(isProject) thead.innerHTML += `<th class="px-4 py-2">Desc</th>`;
+                    if(isTask) thead.innerHTML += `<th class="px-4 py-2">Proj</th><th class="px-4 py-2">Desc</th>`;
+                    thead.innerHTML += `<th class="px-4 py-2 text-right cursor-pointer" onclick="app.sortData('${hourKey}')">${hourLabel}</th>`;
+                    if(showCap) thead.innerHTML += `<th class="px-4 py-2 text-right">${isTask ? "Contributors" : "Capacity"}</th>`;
+                    if(showUtil) thead.innerHTML += `<th class="px-4 py-2 text-right cursor-pointer" onclick="app.sortData('util')">${utilLabel}</th>`;
+
+                    const groups = {};
+                    STATE.filteredData.forEach(d => {
+                        const k = d[groupBy];
+                        if(!groups[k]) groups[k] = { name: k, p:0, np:0, resWeeks: {}, desc: '', pcode: new Set(), pdesc: new Set() };
+                        if(d.isProductive) groups[k].p += d.hours; else groups[k].np += d.hours;
+                        
+                        if(!groups[k].resWeeks[d['Resource Name']]) groups[k].resWeeks[d['Resource Name']] = new Set();
+                        groups[k].resWeeks[d['Resource Name']].add(d.weekString);
+
+                        if(isProject && !groups[k].desc) groups[k].desc = d['Project Description'];
+                        if(isTask) { groups[k].pcode.add(d['Project Code']); groups[k].pdesc.add(d['Project Description']); }
+                    });
+
+                    let arr = Object.values(groups).map(g => {
+                        let totalCap = 0;
+                        Object.values(g.resWeeks).forEach(weeks => totalCap += this.calculateCapacityFromSet(Array.from(weeks), STATE.globalMaxWeek));
+                        
+                        const h = g[hourKey];
+                        const u = totalCap > 0 ? (h / totalCap * 100) : 0;
+                        if(isNonProd && h === 0) return null;
+                        if(!isNonProd && h === 0 && totalCap === 0) return null;
+
+                        return { ...g, cap: totalCap, util: u, pcode: Array.from(g.pcode).join(','), pdesc: Array.from(g.pdesc).join(',') };
+                    }).filter(x => x);
+
+                    if (STATE.sortKey) arr.sort((a,b) => {
+                        let va = a[STATE.sortKey], vb = b[STATE.sortKey];
+                        if(typeof va === 'string') return va.localeCompare(vb) * (STATE.sortAsc ? 1 : -1);
+                        return (va - vb) * (STATE.sortAsc ? 1 : -1);
+                    });
+
+                    arr.forEach(g => {
+                        let extra = '';
+                        if(isProject) extra = `<td class="px-4 py-2 text-slate-500 truncate max-w-xs">${g.desc}</td>`;
+                        if(isTask) extra = `<td class="px-4 py-2 text-slate-500 truncate max-w-xs">${g.pcode}</td><td class="px-4 py-2 text-slate-500 truncate max-w-xs">${g.pdesc}</td>`;
+                        
+                        let c3 = '';
+                        if(showCap) {
+                            if(isTask) {
+                                const names = Object.keys(g.resWeeks);
+                                c3 = `<td class="px-4 py-2 text-right text-slate-500 cursor-help" title="${names.join('\n')}">${names.slice(0,2).join(', ')}${names.length>2?` +${names.length-2}`:''}</td>`;
+                            } else c3 = `<td class="px-4 py-2 text-right text-slate-600">${g.cap}</td>`;
+                        }
+                        let c4 = showUtil ? `<td class="px-4 py-2 text-right font-bold">${g.util.toFixed(1)}%</td>` : '';
+
+                        tbody.innerHTML += `<tr class="hover:bg-slate-50"><td class="px-4 py-2 font-bold truncate max-w-xs" title="${g.name}">${g.name}</td>${extra}<td class="px-4 py-2 text-right ${hourColor} font-mono">${g[hourKey].toFixed(1)}</td>${c3}${c4}</tr>`;
+                    });
+                    footer.innerText = `Aggregated by ${groupBy}`;
+                }
+            }
+
+            renderRawTable() {
+                const tbody = document.getElementById('raw-table-body');
+                const thead = document.getElementById('raw-table-header');
+                const footer = document.getElementById('raw-table-footer');
+                const search = document.getElementById('raw-table-search').value.toLowerCase();
+                if (!tbody) return;
+                tbody.innerHTML = ''; thead.innerHTML = '';
+
+                let raw = STATE.filteredData;
+                if (STATE.currentTab === 'nonprod') raw = raw.filter(d => !d.isProductive);
+                else if (STATE.currentTab === 'prod') raw = raw.filter(d => d.isProductive);
+                
+                if(search) raw = raw.filter(r => Object.values(r).join(' ').toLowerCase().includes(search));
+
+                CONFIG.requiredColumns.forEach(c => thead.innerHTML += `<th class="px-4 py-3 border-b border-slate-200 bg-slate-50">${c}</th>`);
+                raw.slice(0, 50).forEach(row => {
+                    let tr = '<tr class="hover:bg-slate-50">';
+                    CONFIG.requiredColumns.forEach(c => {
+                        let val = row[c];
+                        if(c.includes('Date') || c.includes('Week')) val = row.weekString;
+                        if(c === 'Hours Billed') val = parseFloat(val).toFixed(2);
+                        tr += `<td class="px-4 py-2 border-b border-slate-100">${val}</td>`;
+                    });
+                    tbody.innerHTML += tr + '</tr>';
+                });
+                footer.innerText = `Showing ${Math.min(50, raw.length)} of ${raw.length} records.`;
+            }
+
+            filterRawTable() { this.renderRawTable(); }
+            
+            exportRawCSV() { 
+                const search = document.getElementById('raw-table-search').value.toLowerCase();
+                let raw = STATE.filteredData;
+                
+                if (STATE.currentTab === 'nonprod') raw = raw.filter(d => !d.isProductive);
+                else if (STATE.currentTab === 'prod') raw = raw.filter(d => d.isProductive);
+                
+                if (search) raw = raw.filter(r => Object.values(r).join(' ').toLowerCase().includes(search));
+
+                const d = raw.map(r => { const o = {}; CONFIG.requiredColumns.forEach(c => o[c] = (c==='Week Beginning')?r.weekString:r[c]); return o; });
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(d), "RawData");
+                XLSX.writeFile(wb, "Clarity_Raw_Export.csv");
+            }
+            
+            exportCSV() { 
+                const d = STATE.filteredData.map(({_id, isProductive, oracleCodeInt, weekString, monthString, _wDate, _normStatus, ...rest}) => rest);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(d), "Export");
+                XLSX.writeFile(wb, "Clarity_Export.csv");
+            }
+            
+            showError(msg) { document.getElementById('error-message').classList.remove('hidden'); document.getElementById('error-text').innerText = msg; }
+        }
+
+        const app = new ClarityApp();
+    </script>
+</body>
+</html>
