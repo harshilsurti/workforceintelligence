@@ -201,6 +201,7 @@
                         <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 h-[600px] flex flex-col"><h3 id="mgr-count-header" class="font-bold text-slate-800 text-sm mb-2">Current Resource Count by Manager (Based on Capacity)</h3><div class="flex-1 relative min-h-0"><canvas id="chart-res-manager"></canvas></div></div>
                         <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 h-[600px] flex flex-col"><h3 class="font-bold text-slate-800 text-sm mb-2">Resources utilized by Client (based on Productive Hours)</h3><div class="flex-1 relative min-h-0"><canvas id="chart-res-client"></canvas></div></div>
                     </div>
+                    <div id="grid-container-resourcing"></div>
                 </div>
             </div>
 
@@ -219,7 +220,11 @@
                     <div class="p-3 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-lg">
                         <div class="flex items-center gap-4">
                             <h3 class="font-bold text-slate-800 text-sm">Summary Data Grid</h3>
-                            <div class="flex items-center gap-2 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm"><label class="text-[10px] font-semibold text-slate-500">Group By:</label><select onchange="app.updateTable()" class="table-group-by text-xs bg-transparent outline-none font-medium text-indigo-700 cursor-pointer"><option value="none">None (Detailed)</option><option value="Resource Name">Resource Name</option><option value="Resource Manager">Resource Manager</option><option value="Task Name">Task Name</option><option value="Project Code">Project Code</option><option value="Client Name">Client Name</option></select></div>
+                            <div class="flex items-center gap-2 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm"><label class="text-[10px] font-semibold text-slate-500">Group By:</label><select onchange="app.onGroupByChange()" class="table-group-by text-xs bg-transparent outline-none font-medium text-indigo-700 cursor-pointer"><option value="none">None (Detailed)</option><option value="Resource Name">Resource Name</option><option value="Resource Manager">Resource Manager</option><option value="Task Name">Task Name</option><option value="Project Code">Project Code</option><option value="Client Name">Client Name</option><option value="Week Beginning">Week Beginning</option></select></div>
+                            <div class="hierarchy-controls hidden flex items-center gap-3 border-l border-slate-300 pl-3">
+                                <button onclick="app.expandAll()" class="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 transition-colors"><i class="fa-solid fa-angles-down mr-1"></i>Expand All</button>
+                                <button onclick="app.collapseAll()" class="text-[10px] font-bold text-slate-500 hover:text-slate-700 transition-colors"><i class="fa-solid fa-angles-up mr-1"></i>Collapse All</button>
+                            </div>
                         </div>
                         <div class="flex gap-2"><input type="text" oninput="app.filterData()" class="table-search text-xs border border-slate-300 rounded px-2 py-1 focus:outline-none focus:border-indigo-500 w-48" placeholder="Search grid..."><button onclick="app.exportCSV()" class="bg-emerald-600 text-white px-3 py-1 rounded text-xs hover:bg-emerald-700 transition font-medium"><i class="fa-solid fa-file-csv mr-1"></i>Export</button></div>
                     </div>
@@ -243,7 +248,7 @@
         Chart.defaults.onHover = (event, chartElement) => { event.native.target.style.cursor = chartElement.length ? 'pointer' : 'default'; };
 
         const CONFIG = { requiredColumns: ["Date", "Oracle Code", "Client Name", "Project Code", "Project Description", "Resource Name", "Resource Manager", "Timesheet Status", "Week Beginning", "Task Name", "Hours Billed", "Type Code"], nonProductiveCode: 100002, weeklyCapacity: 40 };
-        const STATE = { rawData: [], processedData: [], filteredData: [], filterOptions: {}, activeFilters: {}, charts: {}, tableGroupBy: 'none', sortKey: null, sortAsc: true, currentTab: 'exec', globalMaxWeek: '', resUtilSort: 'alpha' };
+        const STATE = { rawData: [], processedData: [], filteredData: [], filterOptions: {}, activeFilters: {}, charts: {}, tableGroupBy: 'none', sortKey: 'name', sortAsc: true, currentTab: 'exec', globalMaxWeek: '', resUtilSort: 'alpha' };
         function generateColors(count) { const colors = ['#4f46e5', '#ef4444', '#10b981', '#f59e0b', '#3b82f6', '#ec4899', '#8b5cf6', '#06b6d4', '#84cc16', '#64748b']; return Array.from({ length: count }, (_, i) => colors[i % colors.length]); }
 
         class ClarityApp {
@@ -291,6 +296,17 @@
                 };
                 reader.readAsArrayBuffer(file);
             }
+
+            formatDateDDMMMYYYY(dateVal) {
+                let d = dateVal;
+                if (!(d instanceof Date)) d = new Date(d);
+                if (isNaN(d.getTime())) return dateVal;
+                const day = String(d.getDate()).padStart(2, '0');
+                const monthStrShort = d.toLocaleString('en-US', { month: 'short' });
+                const yearStr = d.getFullYear().toString();
+                return `${day}-${monthStrShort}-${yearStr}`;
+            }
+
             validateAndTransform(json) {
                 if (!json || json.length === 0) throw new Error("File is empty.");
                 const ALIAS_MAP = { "oracle proj id": "oracle code", "project name": "project description", "hours": "hours billed" };
@@ -308,17 +324,22 @@
                         const match = CONFIG.requiredColumns.find(rc => rc.toLowerCase() === mappedKey);
                         if (match) safeRow[match] = row[k];
                     });
+                    
+                    if (safeRow['Date']) safeRow['Date'] = this.formatDateDDMMMYYYY(safeRow['Date']);
+                    
                     const status = (safeRow['Timesheet Status'] || '').toLowerCase();
                     if (status.includes('cancelled') || status.includes('returned')) return;
                     let wDate = safeRow['Week Beginning'];
                     if (!(wDate instanceof Date)) wDate = new Date(wDate);
                     if (isNaN(wDate.getTime())) return;
-                    const weekStr = wDate.toISOString().split('T')[0];
-                    const key = `${safeRow['Resource Name']}|${weekStr}`;
+                    
+                    const formattedWeekStr = this.formatDateDDMMMYYYY(wDate);
+                    
+                    const key = `${safeRow['Resource Name']}|${wDate.getTime()}`; // Uses actual timestamp for perfect deduplication
                     if (!groupedRows.has(key)) groupedRows.set(key, []);
                     safeRow._normStatus = status;
                     safeRow._wDate = wDate;
-                    safeRow.weekString = weekStr;
+                    safeRow.weekString = formattedWeekStr;
                     groupedRows.get(key).push(safeRow);
                 });
 
@@ -332,19 +353,22 @@
 
                 const processed = [];
                 const distincts = { 'Year': new Set(), 'Month': new Set(), 'Week Beginning': new Set(), 'Client Name': new Set(), 'Project Code': new Set(), 'Resource Manager': new Set(), 'Resource Name': new Set(), 'Task Name': new Set(), 'Oracle Code': new Set() };
+                let maxWDate = new Date(0);
                 let maxW = '';
                 deduplicatedData.forEach((safeRow, idx) => {
                     const wDate = safeRow._wDate;
                     const weekStr = safeRow.weekString;
-                    if(weekStr > maxW) maxW = weekStr;
+                    
+                    if (wDate > maxWDate) { maxWDate = wDate; maxW = weekStr; }
+                    
                     const hours = parseFloat(safeRow['Hours Billed']) || 0;
                     const oracleCode = parseInt(safeRow['Oracle Code']);
                     const typeCodeStr = String(safeRow['Type Code'] || '').trim().toUpperCase();
                     const isNonBillable = (typeCodeStr === 'NON' && oracleCode !== CONFIG.nonProductiveCode);
-                    const monthStr = wDate.toLocaleString('default', { month: 'short', year: 'numeric' });
-                    const longMonthStr = wDate.toLocaleString('default', { month: 'long', year: 'numeric' });
-                    const yearStr = wDate.getFullYear().toString();
-                    const enriched = { ...safeRow, _id: idx, hours: hours, isProductive: oracleCode !== CONFIG.nonProductiveCode, isNonBillable: isNonBillable, 'Type Code': typeCodeStr, oracleCodeInt: oracleCode, monthString: monthStr, 'Year': yearStr, 'Month': longMonthStr, 'Week Beginning': weekStr };
+                    const monthStr = wDate.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+                    const longMonthStr = wDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+                    const yearStrVal = wDate.getFullYear().toString();
+                    const enriched = { ...safeRow, _id: idx, hours: hours, isProductive: oracleCode !== CONFIG.nonProductiveCode, isNonBillable: isNonBillable, 'Type Code': typeCodeStr, oracleCodeInt: oracleCode, monthString: monthStr, 'Year': yearStrVal, 'Month': longMonthStr, 'Week Beginning': weekStr };
                     Object.keys(distincts).forEach(k => { if(enriched[k]) distincts[k].add(String(enriched[k])); });
                     processed.push(enriched);
                 });
@@ -362,12 +386,13 @@
                 document.getElementById('grid-container-prod').innerHTML = gridHtml;
                 document.getElementById('grid-container-nonprod').innerHTML = gridHtml;
                 document.getElementById('grid-container-nonbill').innerHTML = gridHtml;
+                document.getElementById('grid-container-resourcing').innerHTML = gridHtml;
                 this.renderMultiSelectFilters();
                 this.setTab('exec');
             }
 
             calculateCapacityFromSet(weekStringArray, globalMaxWeek) {
-                const uniqueWeeks = Array.from(new Set(weekStringArray)).sort();
+                const uniqueWeeks = Array.from(new Set(weekStringArray)).sort((a,b) => new Date(a) - new Date(b));
                 if(uniqueWeeks.length === 0) return 0;
                 const minTime = new Date(uniqueWeeks[0]).getTime();
                 let maxTime = new Date(uniqueWeeks[uniqueWeeks.length-1]).getTime();
@@ -504,7 +529,7 @@
                     months[d.Month].tot += d.hours;
                     if(d._wDate < months[d.Month].firstDate) months[d.Month].firstDate = d._wDate;
                 });
-                const sortedWeeks = Object.keys(weeks).sort();
+                const sortedWeeks = Object.keys(weeks).sort((a,b) => new Date(a) - new Date(b));
                 const sortedMonths = Object.keys(months).sort((a,b) => months[a].firstDate - months[b].firstDate);
                 const weekUtilData = sortedWeeks.map(w => {
                     let wCap = 0; Object.entries(resWeekMap).forEach(([r, set]) => {
@@ -516,7 +541,7 @@
                     return wCap > 0 ? (weeks[w].p / wCap * 100) : 0;
                 });
                 const monthUtilData = sortedMonths.map(m => {
-                    let mCap = 0; const wsInM = sortedWeeks.filter(w => new Date(w).toLocaleString('default', { month: 'long', year: 'numeric' }) === m);
+                    let mCap = 0; const wsInM = sortedWeeks.filter(w => new Date(w).toLocaleString('en-US', { month: 'long', year: 'numeric' }) === m);
                     wsInM.forEach(w => {
                         const wTime = new Date(w).getTime(); Object.entries(resWeekMap).forEach(([r, set]) => {
                             const times = Array.from(set).map(s=>new Date(s).getTime());
@@ -613,9 +638,18 @@
                     const currMgr = {}; data.forEach(d=>{ if(d.weekString===latestW){ if(!currMgr[d['Resource Manager']]) currMgr[d['Resource Manager']]=new Set(); currMgr[d['Resource Manager']].add(d['Resource Name']); } });
                     const sortedMgrs = Object.entries(currMgr).map(([m,s])=>({m,c:s.size})).sort((a,b)=>a.m.localeCompare(b.m));
                     STATE.charts.resMgr = new Chart(document.getElementById('chart-res-manager'), { type:'bar', data:{labels:sortedMgrs.map(t=>t.m), datasets:[{data:sortedMgrs.map(t=>t.c), backgroundColor:'#8b5cf6'}]}, options:{maintainAspectRatio:false, indexAxis: 'y', plugins:{legend:{display:false}, datalabels:{anchor:'end', align:'end'}}, onClick: (e, items) => { if(items.length) this.handleChartClick('Resource Manager', sortedMgrs[items[0].index].m); else this.clearChartFilter('Resource Manager'); } } });
-                    const clientStats = {}; data.forEach(d=>{ if(d.isProductive && d.hours > 0){ if(!clientStats[d['Client Name']]) clientStats[d['Client Name']]={h:0,w:new Set()}; clientStats[d['Client Name']].h+=d.hours; clientStats[d['Client Name']].w.add(d.weekString); } });
-                    const clientFTEs = Object.entries(clientStats).map(([c,s])=>({c, fte:s.w.size>0?(s.h/(s.w.size*40)):0})).sort((a,b)=>b.fte-a.fte).slice(0,15);
-                    STATE.charts.resClient = new Chart(document.getElementById('chart-res-client'), { type:'bar', data:{labels:clientFTEs.map(t=>t.c), datasets:[{data:clientFTEs.map(t=>t.fte), backgroundColor:'#10b981'}]}, options:{maintainAspectRatio:false, indexAxis: 'y', plugins:{legend:{display:false}, datalabels:{formatter:v=>v.toFixed(1)}}, onClick: (e, items) => { if(items.length) this.handleChartClick('Client Name', clientFTEs[items[0].index].c); else this.clearChartFilter('Client Name'); } } });
+                    
+                    const globalUniqueWeeks = new Set(data.map(d => d.weekString)).size || 1;
+                    const clientStats = {}; 
+                    data.forEach(d=>{ 
+                        if(d.isProductive && d.hours > 0){ 
+                            if(!clientStats[d['Client Name']]) clientStats[d['Client Name']]={h:0}; 
+                            clientStats[d['Client Name']].h+=d.hours; 
+                        } 
+                    });
+                    
+                    const clientFTEs = Object.entries(clientStats).map(([c,s])=>({c, fte:(s.h/(globalUniqueWeeks*40)), h: s.h})).sort((a,b)=>b.fte-a.fte).slice(0,15);
+                    STATE.charts.resClient = new Chart(document.getElementById('chart-res-client'), { type:'bar', data:{labels:clientFTEs.map(t=>t.c), datasets:[{data:clientFTEs.map(t=>t.fte), backgroundColor:'#10b981'}]}, options:{maintainAspectRatio:false, indexAxis: 'y', layout: { padding: { right: 120 } }, plugins:{legend:{display:false}, datalabels:{formatter:(v, ctx) => `${v.toFixed(1)} FTE (${Math.round(clientFTEs[ctx.dataIndex].h)} hrs)`}}, onClick: (e, items) => { if(items.length) this.handleChartClick('Client Name', clientFTEs[items[0].index].c); else this.clearChartFilter('Client Name'); } } });
                 }
             }
 
@@ -648,7 +682,7 @@
                                 if(wTime >= min && wTime <= max) cap += 40;
                             });
                         } else {
-                            const wsInM = allSortedWeeks.filter(w => new Date(w).toLocaleString('default', { month: 'long', year: 'numeric' }) === l);
+                            const wsInM = allSortedWeeks.filter(w => new Date(w).toLocaleString('en-US', { month: 'long', year: 'numeric' }) === l);
                             wsInM.forEach(w => {
                                 const wTime = new Date(w).getTime(); Object.entries(mgrResWeekMap).forEach(([r, set]) => {
                                     const times = Array.from(set).map(s=>new Date(s).getTime()); const min = Math.min(...times); let max = Math.max(...times);
@@ -665,20 +699,29 @@
             }
 
             sortData(key) { if (STATE.sortKey === key) STATE.sortAsc = !STATE.sortAsc; else { STATE.sortKey = key; STATE.sortAsc = true; } this.updateTable(); }
+            
+            onGroupByChange() { STATE.sortKey = 'name'; STATE.sortAsc = true; this.updateTable(); }
+
+            getActiveGridContainer() {
+                if (STATE.currentTab === 'prod') return document.getElementById('grid-container-prod');
+                if (STATE.currentTab === 'nonprod') return document.getElementById('grid-container-nonprod');
+                if (STATE.currentTab === 'nonbill') return document.getElementById('grid-container-nonbill');
+                if (STATE.currentTab === 'resourcing') return document.getElementById('grid-container-resourcing');
+                return null;
+            }
 
             updateTable() {
-                let activeContainer;
-                if (STATE.currentTab === 'prod') activeContainer = document.getElementById('grid-container-prod');
-                else if (STATE.currentTab === 'nonprod') activeContainer = document.getElementById('grid-container-nonprod');
-                else if (STATE.currentTab === 'nonbill') activeContainer = document.getElementById('grid-container-nonbill');
+                const activeContainer = this.getActiveGridContainer();
                 if (!activeContainer) return;
                 const groupBy = activeContainer.querySelector('.table-group-by').value; const tbody = activeContainer.querySelector('.data-table-body');
                 const thead = activeContainer.querySelector('.table-header-row'); const footer = activeContainer.querySelector('.table-footer');
                 tbody.innerHTML = ''; thead.innerHTML = '';
                 const isNonProd = STATE.currentTab === 'nonprod'; const isNonBill = STATE.currentTab === 'nonbill';
+                const isResourcing = STATE.currentTab === 'resourcing';
                 let hourKey = 'p'; let hourLabel = 'Productive Hours'; let hourColor = 'text-emerald-600';
                 if (isNonProd) { hourKey = 'np'; hourLabel = 'Non-Productive Hours'; hourColor = 'text-rose-600'; }
                 if (isNonBill) { hourKey = 'nb'; hourLabel = 'Non-Billable Hours'; hourColor = 'text-amber-600'; }
+                
                 if (groupBy === 'none') {
                     let extraH = isNonBill ? `<th class="px-4 py-2">Oracle Code</th><th class="px-4 py-2">Client Name</th>` : '';
                     thead.innerHTML = `<th class="px-4 py-2">Week</th><th class="px-4 py-2">Resource</th><th class="px-4 py-2">Project</th><th class="px-4 py-2">Task</th>${extraH}<th class="px-4 py-2 text-right">Hours</th><th class="px-4 py-2 text-center">Type</th>`;
@@ -692,15 +735,41 @@
                     footer.innerText = `Showing ${Math.min(150, list.length)} entries.`;
                 } else {
                     const isTask = groupBy === 'Task Name'; const isProject = groupBy === 'Project Code'; const isClient = groupBy === 'Client Name';
+                    const isWeek = groupBy === 'Week Beginning';
+                    
+                    let showCap = !isProject && !isClient && !isWeek;
+                    let showUtil = !isTask && !isProject && !isClient && !isWeek;
+                    
+                    if (isResourcing && groupBy !== 'none') {
+                        showCap = false;
+                        showUtil = false;
+                    }
+
+                    const hierarchies = {
+                        'Resource Name': ['Client Name', 'Project Description', 'Task Name', 'Week Beginning'],
+                        'Resource Manager': ['Resource Name', 'Client Name', 'Project Description', 'Task Name', 'Week Beginning'],
+                        'Task Name': [],
+                        'Project Code': [],
+                        'Client Name': ['Resource Name', 'Project Description', 'Task Name', 'Week Beginning'],
+                        'Week Beginning': ['Client Name', 'Resource Name', 'Project Description', 'Task Name']
+                    };
+                    
+                    const hc = activeContainer.querySelector('.hierarchy-controls');
+                    if (hc) {
+                        if (isResourcing && groupBy !== 'none' && (hierarchies[groupBy] || []).length > 0) hc.classList.remove('hidden');
+                        else hc.classList.add('hidden');
+                    }
+
                     thead.innerHTML = `<th class="px-4 py-2 cursor-pointer" onclick="app.sortData('name')">${groupBy}</th>`;
                     if(isProject) thead.innerHTML += `<th class="px-4 py-2">Desc</th>`;
                     if(isTask) thead.innerHTML += `<th class="px-4 py-2">Proj</th><th class="px-4 py-2">Desc</th>`;
                     if(isNonBill) thead.innerHTML += `<th class="px-4 py-2">Oracle Code</th><th class="px-4 py-2">Client Name</th>`;
                     thead.innerHTML += `<th class="px-4 py-2 text-right cursor-pointer" onclick="app.sortData('${hourKey}')">${hourLabel}</th>`;
-                    if(!isProject && !isClient) thead.innerHTML += `<th class="px-4 py-2 text-right">${isTask ? "Contributors" : "Capacity"}</th>`;
-                    if(!isTask && !isProject && !isClient) thead.innerHTML += `<th class="px-4 py-2 text-right cursor-pointer" onclick="app.sortData('util')">Util %</th>`;
+                    if(showCap) thead.innerHTML += `<th class="px-4 py-2 text-right">${isTask ? "Contributors" : "Capacity"}</th>`;
+                    if(showUtil) thead.innerHTML += `<th class="px-4 py-2 text-right cursor-pointer" onclick="app.sortData('util')">Util %</th>`;
+                    
                     const groups = {}; STATE.filteredData.forEach(d => {
-                        const k = d[groupBy]; if(!groups[k]) groups[k] = { name: k, p:0, np:0, nb:0, resWeeks: {}, desc: '', pcode: new Set(), pdesc: new Set(), ocode: new Set(), client: new Set() };
+                        const k = d[groupBy]; if(!groups[k]) groups[k] = { name: k, p:0, np:0, nb:0, resWeeks: {}, desc: '', pcode: new Set(), pdesc: new Set(), ocode: new Set(), client: new Set(), children: {} };
                         if(d.isProductive) groups[k].p += d.hours; else groups[k].np += d.hours;
                         if(d.isNonBillable) groups[k].nb += d.hours;
                         if(!groups[k].resWeeks[d['Resource Name']]) groups[k].resWeeks[d['Resource Name']] = new Set();
@@ -708,25 +777,78 @@
                         if(isProject && !groups[k].desc) groups[k].desc = d['Project Description'];
                         if(isTask) { groups[k].pcode.add(d['Project Code']); groups[k].pdesc.add(d['Project Description']); }
                         if(isNonBill) { groups[k].ocode.add(d['Oracle Code']); groups[k].client.add(d['Client Name']); }
+                        
+                        // Hierarchical logic for Resourcing tab
+                        if (isResourcing && d.isProductive && d.hours > 0 && groupBy !== 'none') {
+                            let currentLevel = groups[k];
+                            const hierarchy = hierarchies[groupBy] || [];
+                            hierarchy.forEach(levelKey => {
+                                const levelVal = d[levelKey] || 'N/A';
+                                if (!currentLevel.children[levelVal]) currentLevel.children[levelVal] = { hours: 0, children: {} };
+                                currentLevel.children[levelVal].hours += d.hours;
+                                currentLevel = currentLevel.children[levelVal];
+                            });
+                        }
                     });
+                    
                     let arr = Object.values(groups).map(g => {
                         let totalCap = 0; Object.values(g.resWeeks).forEach(ws => totalCap += this.calculateCapacityFromSet(Array.from(ws), STATE.globalMaxWeek));
                         if((isNonProd || isNonBill) && g[hourKey] === 0) return null;
                         if(!isNonProd && !isNonBill && g[hourKey] === 0 && totalCap === 0) return null;
                         return { ...g, cap: totalCap, util: totalCap > 0 ? (g[hourKey] / totalCap * 100) : 0, pcode: Array.from(g.pcode).join(','), pdesc: Array.from(g.pdesc).join(','), ocode: Array.from(g.ocode).join(','), client: Array.from(g.client).join(',') };
                     }).filter(x => x);
+                    
                     if (STATE.sortKey) arr.sort((a,b) => {
                         let va = a[STATE.sortKey], vb = b[STATE.sortKey];
+                        if (STATE.sortKey === 'name' && groupBy === 'Week Beginning') {
+                            return (new Date(va) - new Date(vb)) * (STATE.sortAsc ? 1 : -1);
+                        }
                         if(typeof va === 'string') return va.localeCompare(vb) * (STATE.sortAsc ? 1 : -1);
                         return (va - vb) * (STATE.sortAsc ? 1 : -1);
                     });
-                    arr.forEach(g => {
+                    
+                    arr.forEach((g, idx) => {
+                        let rowId = `parent-${idx}`;
+                        let hasChildren = isResourcing && Object.keys(g.children).length > 0;
+                        let prefix = hasChildren ? `<i id="icon-${rowId}" class="fa-solid fa-chevron-right text-indigo-500 text-[10px] w-4 mr-1 cursor-pointer transition-transform" onclick="app.toggleChildRows('${rowId}', event)"></i>` : '';
+
                         let extra = isProject ? `<td class="px-4 py-2 text-slate-500 truncate max-w-xs">${g.desc}</td>` : isTask ? `<td class="px-4 py-2 text-slate-500 truncate max-w-xs">${g.pcode}</td><td class="px-4 py-2 text-slate-500 truncate max-w-xs">${g.pdesc}</td>` : '';
                         let nbCols = isNonBill ? `<td class="px-4 py-2 text-slate-500 truncate max-w-xs" title="${g.ocode}">${g.ocode}</td><td class="px-4 py-2 text-slate-500 truncate max-w-xs" title="${g.client}">${g.client}</td>` : '';
-                        let c3 = (!isProject && !isClient) ? (isTask ? `<td class="px-4 py-2 text-right text-slate-500 cursor-help" title="${Object.keys(g.resWeeks).join('\n')}">${Object.keys(g.resWeeks).slice(0,2).join(', ')}${Object.keys(g.resWeeks).length>2?` +${Object.keys(g.resWeeks).length-2}`:''}</td>` : `<td class="px-4 py-2 text-right text-slate-600">${g.cap}</td>`) : '';
-                        let c4 = (!isTask && !isProject && !isClient) ? `<td class="px-4 py-2 text-right font-bold">${g.util.toFixed(1)}%</td>` : '';
-                        tbody.innerHTML += `<tr class="hover:bg-slate-50"><td class="px-4 py-2 font-bold truncate max-w-xs" title="${g.name}">${g.name}</td>${extra}${nbCols}<td class="px-4 py-2 text-right ${hourColor} font-mono">${g[hourKey].toFixed(1)}</td>${c3}${c4}</tr>`;
+                        let c3 = showCap ? (isTask ? `<td class="px-4 py-2 text-right text-slate-500 cursor-help" title="${Object.keys(g.resWeeks).join('\n')}">${Object.keys(g.resWeeks).slice(0,2).join(', ')}${Object.keys(g.resWeeks).length>2?` +${Object.keys(g.resWeeks).length-2}`:''}</td>` : `<td class="px-4 py-2 text-right text-slate-600">${g.cap}</td>`) : '';
+                        let c4 = showUtil ? `<td class="px-4 py-2 text-right font-bold">${g.util.toFixed(1)}%</td>` : '';
+                        
+                        tbody.innerHTML += `<tr class="hover:bg-slate-50"><td class="px-4 py-2 font-bold truncate max-w-xs" title="${g.name}"><div class="flex items-center">${prefix}${g.name}</div></td>${extra}${nbCols}<td class="px-4 py-2 text-right ${hourColor} font-mono">${g[hourKey].toFixed(1)}</td>${c3}${c4}</tr>`;
+                        
+                        // Render Accordion Child Rows Recursively
+                        if (hasChildren) {
+                            let spacerCount = (isProject ? 1 : 0) + (isTask ? 2 : 0) + (isNonBill ? 2 : 0);
+                            let spacerHtml = '';
+                            for(let i=0; i<spacerCount; i++) spacerHtml += '<td class="px-4 py-2"></td>';
+                            
+                            const renderChildren = (childrenObj, parentId, depth) => {
+                                let html = '';
+                                Object.entries(childrenObj).sort((a,b) => b[1].hours - a[1].hours).forEach(([name, data], cIdx) => {
+                                    let childRowId = `${parentId}-c${cIdx}`;
+                                    let hasSub = Object.keys(data.children).length > 0;
+                                    let padLeft = 1.5 + (depth * 1.5); 
+                                    let cPrefix = hasSub ? `<i id="icon-${childRowId}" class="fa-solid fa-chevron-right text-indigo-${Math.max(300, 600 - depth*100)} text-[10px] w-4 mr-1 cursor-pointer transition-transform" onclick="app.toggleChildRows('${childRowId}', event)"></i>` : `<i class="fa-solid fa-arrow-turn-up fa-rotate-90 text-slate-300 mr-2 ml-1 text-[10px]"></i>`;
+                                    
+                                    html += `<tr data-row-id="${childRowId}" data-parent="${parentId}" class="hover:bg-slate-100 hidden bg-slate-50/80 border-t border-slate-100/50">
+                                        <td class="px-4 py-1.5 text-xs truncate max-w-xs text-slate-600" style="padding-left: ${padLeft}rem;" title="${name}"><div class="flex items-center">${cPrefix}${name}</div></td>
+                                        ${spacerHtml}
+                                        <td class="px-4 py-1.5 text-right ${hourColor} font-mono text-xs">${data.hours.toFixed(1)}</td>
+                                        ${showCap ? '<td class="px-4 py-2"></td>' : ''}
+                                        ${showUtil ? '<td class="px-4 py-2"></td>' : ''}
+                                    </tr>`;
+                                    
+                                    if (hasSub) html += renderChildren(data.children, childRowId, depth + 1);
+                                });
+                                return html;
+                            };
+                            tbody.innerHTML += renderChildren(g.children, rowId, 1);
+                        }
                     });
+                    footer.innerText = `Aggregated by ${groupBy}`;
                 }
             }
 
@@ -752,6 +874,56 @@
             }
 
             filterRawTable() { this.renderRawTable(); }
+            
+            expandAll() {
+                const container = this.getActiveGridContainer();
+                if (!container) return;
+                container.querySelectorAll('i[id^="icon-"].fa-chevron-right').forEach(i => {
+                    i.classList.remove('fa-chevron-right'); i.classList.add('fa-chevron-down');
+                });
+                container.querySelectorAll('tr[data-parent]').forEach(row => row.classList.remove('hidden'));
+            }
+
+            collapseAll() {
+                const container = this.getActiveGridContainer();
+                if (!container) return;
+                container.querySelectorAll('i[id^="icon-"].fa-chevron-down').forEach(i => {
+                    i.classList.remove('fa-chevron-down'); i.classList.add('fa-chevron-right');
+                });
+                container.querySelectorAll('tr[data-parent]').forEach(row => row.classList.add('hidden'));
+            }
+
+            toggleChildRows(parentId, event, forceCollapse = false) {
+                if (event) event.stopPropagation();
+                const icon = document.getElementById(`icon-${parentId}`);
+                let isExpanded = false;
+                
+                if (icon) {
+                    if (forceCollapse) {
+                        icon.classList.remove('fa-chevron-down');
+                        icon.classList.add('fa-chevron-right');
+                    } else {
+                        icon.classList.toggle('fa-chevron-right');
+                        icon.classList.toggle('fa-chevron-down');
+                    }
+                    isExpanded = icon.classList.contains('fa-chevron-down');
+                }
+                
+                const children = document.querySelectorAll(`tr[data-parent="${parentId}"]`);
+                children.forEach(child => {
+                    if (isExpanded && !forceCollapse) {
+                        child.classList.remove('hidden');
+                    } else {
+                        child.classList.add('hidden');
+                        // Recursively collapse nested children so they start fresh next time
+                        const childId = child.getAttribute('data-row-id');
+                        if (childId) {
+                            this.toggleChildRows(childId, null, true);
+                        }
+                    }
+                });
+            }
+
             exportRawCSV() { 
                 const search = document.getElementById('raw-table-search').value.toLowerCase();
                 let raw = STATE.filteredData;
