@@ -55,7 +55,10 @@
                     </div>
                 </div>
                 <div class="mt-8 text-left text-sm text-slate-600 bg-slate-50 p-5 rounded-lg border border-slate-200 shadow-sm w-full max-w-md mx-auto">
-                    <p class="font-bold text-slate-700 mb-3 uppercase tracking-wider text-xs border-b border-slate-200 pb-2">Required Excel Columns (Sequential):</p>
+                    <div class="bg-indigo-50/70 border border-indigo-100 rounded p-3 mb-4 text-xs text-indigo-800 shadow-sm">
+                        <span class="font-bold text-indigo-700"><i class="fa-solid fa-lightbulb text-amber-500 mr-1"></i> Quick Upload:</span> You can directly upload the <span class="font-bold">"Allscripts Timesheet detail by resource V3.11"</span> report from Clarity without any changes.
+                    </div>
+                    <p class="font-bold text-slate-700 mb-3 uppercase tracking-wider text-xs border-b border-slate-200 pb-2">Or Use Manual Columns (Sequential):</p>
                     <ol class="list-decimal list-inside space-y-1 font-mono text-xs">
                         <li>Date</li>
                         <li>Oracle Code <em class="text-slate-400">(or Oracle Proj ID)</em></li>
@@ -296,17 +299,6 @@
                 };
                 reader.readAsArrayBuffer(file);
             }
-
-            formatDateDDMMMYYYY(dateVal) {
-                let d = dateVal;
-                if (!(d instanceof Date)) d = new Date(d);
-                if (isNaN(d.getTime())) return dateVal;
-                const day = String(d.getDate()).padStart(2, '0');
-                const monthStrShort = d.toLocaleString('en-US', { month: 'short' });
-                const yearStr = d.getFullYear().toString();
-                return `${day}-${monthStrShort}-${yearStr}`;
-            }
-
             validateAndTransform(json) {
                 if (!json || json.length === 0) throw new Error("File is empty.");
                 const ALIAS_MAP = { "oracle proj id": "oracle code", "project name": "project description", "hours": "hours billed" };
@@ -324,22 +316,17 @@
                         const match = CONFIG.requiredColumns.find(rc => rc.toLowerCase() === mappedKey);
                         if (match) safeRow[match] = row[k];
                     });
-                    
-                    if (safeRow['Date']) safeRow['Date'] = this.formatDateDDMMMYYYY(safeRow['Date']);
-                    
                     const status = (safeRow['Timesheet Status'] || '').toLowerCase();
                     if (status.includes('cancelled') || status.includes('returned')) return;
                     let wDate = safeRow['Week Beginning'];
                     if (!(wDate instanceof Date)) wDate = new Date(wDate);
                     if (isNaN(wDate.getTime())) return;
-                    
-                    const formattedWeekStr = this.formatDateDDMMMYYYY(wDate);
-                    
-                    const key = `${safeRow['Resource Name']}|${wDate.getTime()}`; // Uses actual timestamp for perfect deduplication
+                    const weekStr = wDate.toISOString().split('T')[0];
+                    const key = `${safeRow['Resource Name']}|${weekStr}`;
                     if (!groupedRows.has(key)) groupedRows.set(key, []);
                     safeRow._normStatus = status;
                     safeRow._wDate = wDate;
-                    safeRow.weekString = formattedWeekStr;
+                    safeRow.weekString = weekStr;
                     groupedRows.get(key).push(safeRow);
                 });
 
@@ -357,7 +344,10 @@
                 let maxW = '';
                 deduplicatedData.forEach((safeRow, idx) => {
                     const wDate = safeRow._wDate;
-                    const weekStr = safeRow.weekString;
+                    const day = String(wDate.getDate()).padStart(2, '0');
+                    const monthStrShort = wDate.toLocaleString('default', { month: 'short' });
+                    const yearStr = wDate.getFullYear().toString();
+                    const weekStr = `${day}-${monthStrShort}-${yearStr}`; // Formatted as dd-Mmm-yyyy
                     
                     if (wDate > maxWDate) { maxWDate = wDate; maxW = weekStr; }
                     
@@ -365,8 +355,8 @@
                     const oracleCode = parseInt(safeRow['Oracle Code']);
                     const typeCodeStr = String(safeRow['Type Code'] || '').trim().toUpperCase();
                     const isNonBillable = (typeCodeStr === 'NON' && oracleCode !== CONFIG.nonProductiveCode);
-                    const monthStr = wDate.toLocaleString('en-US', { month: 'short', year: 'numeric' });
-                    const longMonthStr = wDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+                    const monthStr = wDate.toLocaleString('default', { month: 'short', year: 'numeric' });
+                    const longMonthStr = wDate.toLocaleString('default', { month: 'long', year: 'numeric' });
                     const yearStrVal = wDate.getFullYear().toString();
                     const enriched = { ...safeRow, _id: idx, hours: hours, isProductive: oracleCode !== CONFIG.nonProductiveCode, isNonBillable: isNonBillable, 'Type Code': typeCodeStr, oracleCodeInt: oracleCode, monthString: monthStr, 'Year': yearStrVal, 'Month': longMonthStr, 'Week Beginning': weekStr };
                     Object.keys(distincts).forEach(k => { if(enriched[k]) distincts[k].add(String(enriched[k])); });
@@ -414,7 +404,8 @@
                     if (!STATE.activeFilters[key]) STATE.activeFilters[key] = new Set();
                     
                     let values = Array.from(STATE.filterOptions[key]);
-                    if (key === 'Month') values.sort((a, b) => new Date(a) - new Date(b));
+                    // Updated condition to sort 'Week Beginning' by actual date!
+                    if (key === 'Month' || key === 'Week Beginning') values.sort((a, b) => new Date(a) - new Date(b));
                     else values.sort();
 
                     const group = document.createElement('div'); group.className = 'relative filter-group'; 
@@ -541,7 +532,7 @@
                     return wCap > 0 ? (weeks[w].p / wCap * 100) : 0;
                 });
                 const monthUtilData = sortedMonths.map(m => {
-                    let mCap = 0; const wsInM = sortedWeeks.filter(w => new Date(w).toLocaleString('en-US', { month: 'long', year: 'numeric' }) === m);
+                    let mCap = 0; const wsInM = sortedWeeks.filter(w => new Date(w).toLocaleString('default', { month: 'long', year: 'numeric' }) === m);
                     wsInM.forEach(w => {
                         const wTime = new Date(w).getTime(); Object.entries(resWeekMap).forEach(([r, set]) => {
                             const times = Array.from(set).map(s=>new Date(s).getTime());
@@ -682,7 +673,7 @@
                                 if(wTime >= min && wTime <= max) cap += 40;
                             });
                         } else {
-                            const wsInM = allSortedWeeks.filter(w => new Date(w).toLocaleString('en-US', { month: 'long', year: 'numeric' }) === l);
+                            const wsInM = allSortedWeeks.filter(w => new Date(w).toLocaleString('default', { month: 'long', year: 'numeric' }) === l);
                             wsInM.forEach(w => {
                                 const wTime = new Date(w).getTime(); Object.entries(mgrResWeekMap).forEach(([r, set]) => {
                                     const times = Array.from(set).map(s=>new Date(s).getTime()); const min = Math.min(...times); let max = Math.max(...times);
