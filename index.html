@@ -260,14 +260,15 @@
                     <div>
                         <h3 class="text-lg font-bold text-slate-800 border-b border-slate-200 pb-2 mb-4 text-indigo-900">1. Getting Started: Data Import</h3>
                         <p class="mb-3">To begin, drag and drop your raw time-tracking Excel file (<code>.xlsx</code> or <code>.xls</code>) into the upload zone, or click to browse your files.</p>
-                        <div class="mt-4 bg-amber-50 p-3 rounded-lg border border-amber-200 text-amber-800 text-sm shadow-sm mb-4">
-                            <strong><i class="fa-solid fa-lightbulb text-amber-500 mr-1"></i> Quick Upload:</strong> You can export and directly upload the <strong>"Allscripts Timesheet detail by resource V3.11"</strong> report from Clarity without any changes!
-                        </div>
                         <h4 class="font-semibold text-slate-800 mt-5 mb-2">1.1 Expected Column Format</h4>
                         <p class="mb-3">The application expects specific columns to function correctly. However, it features a smart <strong>Alias Mapping System</strong> that automatically handles common variations in column names. Extra columns (like <em>Resource Primary Role</em>, <em>Resource OBS</em>, etc.) are safely ignored.</p>
                         <p class="font-medium mt-2 text-xs uppercase tracking-wider text-slate-500 mb-2">Required Columns (or accepted aliases):</p>
-                        <div class="grid grid-cols-2 md:grid-cols-3 gap-2 bg-slate-50 p-4 rounded-lg border border-slate-200 font-mono text-xs">
-                            <div>1. Date</div><div>2. Oracle Code</div><div>3. Client Name</div><div>4. Project Code</div><div>5. Project Description</div><div>6. Resource Name</div><div>7. Resource Manager</div><div>8. Timesheet Status</div><div class="text-rose-600 font-bold">9. Week Beginning (Monday)</div><div>10. Task Name</div><div>11. Hours Billed</div><div>12. Type Code</div>
+                        <div class="grid grid-cols-2 md:grid-cols-3 gap-2 bg-slate-50 p-4 rounded-lg border border-slate-200 font-mono text-xs mb-4">
+                            <div>1. Date</div><div>2. Oracle Code (or <em>Oracle Proj ID</em>)</div><div>3. Client Name</div><div>4. Project Code</div><div>5. Project Description (or <em>Project Name</em>)</div><div>6. Resource Name</div><div>7. Resource Manager</div><div>8. Timesheet Status</div><div class="text-rose-600 font-bold">9. Week Beginning (Monday)</div><div>10. Task Name</div><div>11. Hours Billed (or <em>Hours</em>)</div><div>12. Type Code</div>
+                        </div>
+                        <p class="mb-2">You can export below excel report from Clarity which you need to analyse:</p>
+                        <div class="bg-indigo-50 border border-indigo-100 rounded p-3 text-xs text-indigo-800 shadow-sm font-semibold flex items-center gap-2 mb-4">
+                            <i class="fa-solid fa-file-excel text-lg text-emerald-600"></i> Timesheet Details Report &rarr; Allscripts Timesheet detail by resource V3.11
                         </div>
                     </div>
 
