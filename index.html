@@ -9,6 +9,8 @@
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <!-- Added html2canvas for visual screenshots -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -35,8 +37,11 @@
             <div class="bg-indigo-600 text-white p-1.5 rounded shadow-md"><i class="fa-solid fa-shield-halved text-sm"></i></div>
             <div><h1 class="text-lg font-bold text-slate-900 tracking-tight leading-none">Workforce<span class="text-indigo-600">Intelligence</span></h1></div>
         </div>
-        <div class="flex gap-4">
-            <button onclick="window.location.reload()" class="text-xs text-slate-500 hover:text-red-600 font-medium transition-colors"><i class="fa-solid fa-trash-can mr-1"></i> Reset Session</button>
+        <div class="flex gap-2 items-center">
+            <button id="btn-snapshot" onclick="app.exportVisualSnapshot()" class="text-xs text-slate-600 hover:text-emerald-700 font-semibold transition-colors bg-white hover:bg-emerald-50 px-3 py-1.5 rounded-full flex items-center shadow-sm border border-slate-200"><i class="fa-solid fa-camera mr-1.5 text-emerald-500"></i> Visual Snapshot</button>
+            <button onclick="app.exportSession()" class="text-xs text-slate-600 hover:text-blue-700 font-semibold transition-colors bg-white hover:bg-blue-50 px-3 py-1.5 rounded-full flex items-center shadow-sm border border-slate-200"><i class="fa-solid fa-download mr-1.5 text-blue-500"></i> Save Session</button>
+            <button onclick="app.openUserGuide()" class="text-xs text-indigo-700 hover:text-indigo-900 font-bold transition-colors bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-full flex items-center shadow-sm border border-indigo-100"><i class="fa-solid fa-book-open mr-1.5"></i> User Guide</button>
+            <button onclick="window.location.reload()" class="text-xs text-slate-500 hover:text-red-600 font-medium transition-colors ml-2"><i class="fa-solid fa-trash-can mr-1"></i> Reset</button>
         </div>
     </nav>
 
@@ -48,14 +53,17 @@
                 <h2 class="text-2xl font-bold text-slate-900 mb-2">Import Workforce Data</h2>
                 <div class="bg-emerald-50 text-emerald-800 text-xs font-semibold px-4 py-2 rounded-full inline-block mb-6"><i class="fa-solid fa-check-circle mr-1"></i> Data stays on your device.</div>
                 <div id="drop-zone" class="border-2 border-dashed border-slate-300 rounded-xl p-10 transition-all cursor-pointer hover:border-indigo-500 hover:bg-slate-50 group relative">
-                    <input type="file" id="file-input" class="hidden" accept=".xlsx, .xls" />
+                    <input type="file" id="file-input" class="hidden" accept=".xlsx, .xls, .json" />
                     <div class="pointer-events-none">
-                        <p class="text-slate-600 font-medium group-hover:text-indigo-600 text-lg">Drag & Drop Excel File</p>
-                        <p class="text-sm text-slate-400 mt-2">or click to browse</p>
+                        <p class="text-slate-600 font-medium group-hover:text-indigo-600 text-lg">Drag & Drop Excel File or Saved Session</p>
+                        <p class="text-sm text-slate-400 mt-2">or click to browse (.xlsx, .xls, .json)</p>
                     </div>
                 </div>
                 <div class="mt-8 text-left text-sm text-slate-600 bg-slate-50 p-5 rounded-lg border border-slate-200 shadow-sm w-full max-w-md mx-auto">
-                    <p class="font-bold text-slate-700 mb-3 uppercase tracking-wider text-xs border-b border-slate-200 pb-2">Required Excel Columns (Sequential):</p>
+                    <div class="bg-indigo-50/70 border border-indigo-100 rounded p-3 mb-4 text-xs text-indigo-800 shadow-sm">
+                        <span class="font-bold text-indigo-700"><i class="fa-solid fa-lightbulb text-amber-500 mr-1"></i> Quick Upload:</span> You can directly upload the <span class="font-bold">"Allscripts Timesheet detail by resource V3.11"</span> report from Clarity without any changes.
+                    </div>
+                    <p class="font-bold text-slate-700 mb-3 uppercase tracking-wider text-xs border-b border-slate-200 pb-2">Or Use Manual Columns (Sequential):</p>
                     <ol class="list-decimal list-inside space-y-1 font-mono text-xs">
                         <li>Date</li>
                         <li>Oracle Code <em class="text-slate-400">(or Oracle Proj ID)</em></li>
@@ -232,6 +240,144 @@
                 </div>
             </div>
         </div>
+
+        <!-- USER GUIDE MODAL -->
+        <div id="user-guide-modal" class="fixed inset-0 z-[100] hidden bg-slate-900/60 backdrop-blur-sm flex justify-center items-start pt-10 pb-10 px-4 overflow-y-auto custom-scrollbar">
+            <div class="bg-white w-full max-w-4xl rounded-2xl shadow-2xl flex flex-col mt-4 mb-auto animate-fade-in border border-slate-200">
+                <!-- Header -->
+                <div class="p-5 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-2xl sticky top-0 z-10">
+                    <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2"><i class="fa-solid fa-book-open text-indigo-600"></i> Workforce & Utilization Intelligence: User Guide</h2>
+                    <button onclick="app.closeUserGuide()" class="text-slate-400 hover:text-rose-500 transition-colors bg-white hover:bg-rose-50 p-2 rounded-lg border border-slate-200 hover:border-rose-200 shadow-sm flex items-center justify-center"><i class="fa-solid fa-xmark text-lg"></i></button>
+                </div>
+                <!-- Content -->
+                <div class="p-8 text-sm text-slate-700 space-y-8">
+                    
+                    <div class="bg-indigo-50 border border-indigo-100 p-5 rounded-xl text-indigo-900 leading-relaxed shadow-sm">
+                        Welcome to the Workforce & Utilization Intelligence dashboard! This application is designed to ingest standard labor/time-tracking export files and transform them into interactive, actionable insights regarding workforce utilization, non-productive time, non-billable footprint, and resourcing trends.<br><br>
+                        <strong><i class="fa-solid fa-shield-halved mr-1"></i> Security Note:</strong> This application runs <strong>100% locally in your web browser</strong>. Your data is never uploaded to any external server or cloud database, ensuring complete data privacy and compliance.
+                    </div>
+
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-800 border-b border-slate-200 pb-2 mb-4 text-indigo-900">1. Getting Started: Data Import</h3>
+                        <p class="mb-3">To begin, drag and drop your raw time-tracking Excel file (<code>.xlsx</code> or <code>.xls</code>) into the upload zone, or click to browse your files.</p>
+                        <div class="mt-4 bg-amber-50 p-3 rounded-lg border border-amber-200 text-amber-800 text-sm shadow-sm mb-4">
+                            <strong><i class="fa-solid fa-lightbulb text-amber-500 mr-1"></i> Quick Upload:</strong> You can export and directly upload the <strong>"Allscripts Timesheet detail by resource V3.11"</strong> report from Clarity without any changes!
+                        </div>
+                        <h4 class="font-semibold text-slate-800 mt-5 mb-2">1.1 Expected Column Format</h4>
+                        <p class="mb-3">The application expects specific columns to function correctly. However, it features a smart <strong>Alias Mapping System</strong> that automatically handles common variations in column names. Extra columns (like <em>Resource Primary Role</em>, <em>Resource OBS</em>, etc.) are safely ignored.</p>
+                        <p class="font-medium mt-2 text-xs uppercase tracking-wider text-slate-500 mb-2">Required Columns (or accepted aliases):</p>
+                        <div class="grid grid-cols-2 md:grid-cols-3 gap-2 bg-slate-50 p-4 rounded-lg border border-slate-200 font-mono text-xs">
+                            <div>1. Date</div><div>2. Oracle Code</div><div>3. Client Name</div><div>4. Project Code</div><div>5. Project Description</div><div>6. Resource Name</div><div>7. Resource Manager</div><div>8. Timesheet Status</div><div class="text-rose-600 font-bold">9. Week Beginning (Monday)</div><div>10. Task Name</div><div>11. Hours Billed</div><div>12. Type Code</div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-800 border-b border-slate-200 pb-2 mb-4 text-indigo-900">2. Core Business Logic & Calculations</h3>
+                        <p class="mb-4">The most important part of this application is how it handles dirty data, calculates capacity, and categorizes time.</p>
+                        
+                        <h4 class="font-semibold text-slate-800 mt-4 mb-2">2.1 Time Categorization (Prod vs. Non-Prod vs. Non-Bill)</h4>
+                        <ul class="list-disc pl-6 space-y-2 mb-4">
+                            <li><span class="bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded font-medium text-xs">Non-Productive</span> The application hardcodes Oracle Code <code>100002</code> as the Non-Productive code (e.g., PTO, Bench, internal admin).</li>
+                            <li><span class="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-medium text-xs">Non-Billable</span> Any row where the <code>Type Code</code> equals <strong>"NON"</strong> <em>and</em> the Oracle Code is <em>not</em> <code>100002</code>. This captures work done for clients or projects that cannot be billed financially.</li>
+                            <li><span class="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-medium text-xs">Productive</span> Any remaining rows that do not meet the above two criteria are automatically flagged as Productive.</li>
+                        </ul>
+
+                        <h4 class="font-semibold text-slate-800 mt-6 mb-2">2.2 The Deduplication Engine</h4>
+                        <p class="mb-2">Raw data exports often contain duplicate entries due to corrections and approvals. The system applies a strict hierarchy per Resource and Week:</p>
+                        <ul class="list-disc pl-6 space-y-1 mb-4">
+                            <li><strong>Ignore Invalid:</strong> Any row with a status containing <em>Cancelled</em> or <em>Returned</em> is immediately discarded.</li>
+                            <li><strong>Hierarchy:</strong> Keeps <em>only</em> <strong>Adjusted</strong> entries if they exist. If none exist, keeps <em>only</em> <strong>Posted</strong>. Otherwise, it keeps what is available (e.g., Submitted or Open).</li>
+                        </ul>
+
+                        <h4 class="font-semibold text-slate-800 mt-6 mb-2">2.3 Strict Capacity Logic (The "Trailing Edge" Rule)</h4>
+                        <p class="mb-2">Accurately measuring capacity is calculated dynamically based entirely on a user's data presence:</p>
+                        <ul class="list-disc pl-6 space-y-1 mb-4">
+                            <li><strong>Standard Capacity:</strong> 40 hours per week.</li>
+                            <li><strong>Start/End Date:</strong> Bounded by the very first and very last week a resource logs an entry.</li>
+                            <li><strong>Internal Gaps:</strong> If a resource misses an entry <em>between</em> their start and end date, the system still counts 40 hours of capacity for that gap.</li>
+                            <li><strong>The 1-Week Trailing Buffer:</strong> If a resource's last entry is exactly <em>one week</em> prior to the global dataset maximum, the system adds 40 hours of capacity for the current week, assuming they are just late submitting.</li>
+                            <li><strong>Attrition Cut-off:</strong> No capacity is recorded for resources missing two or more consecutive weeks at the end of the global timeline.</li>
+                        </ul>
+
+                        <h4 class="font-semibold text-slate-800 mt-6 mb-2">2.4 Attrition Analysis Logic</h4>
+                        <p>If a resource billed any hours under Manager A in <em>Month X</em>, but has zero billed hours under Manager A in <em>Month X+1</em>, they are counted as +1 Attrition for Manager A in Month X. <em>(The final month is ignored)</em>.</p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-800 border-b border-slate-200 pb-2 mb-4 text-indigo-900">3. Navigating the Dashboard</h3>
+                        <div class="space-y-4">
+                            <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                                <h4 class="font-bold text-slate-800 mb-1">3.1 Executive Summary</h4>
+                                <p class="text-xs mb-2"><strong>KPI Cards:</strong> Total Productive Hours, Non-Productive Hours, Calculated Capacity, and Overall Utilization %.</p>
+                                <p class="text-xs"><strong>Overall Trends:</strong> Line charts showing the ebb and flow of utilization week-over-week and month-over-month.</p>
+                            </div>
+                            <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                                <h4 class="font-bold text-slate-800 mb-1">3.2 Productive Analysis</h4>
+                                <p class="text-xs mb-2 text-slate-500">Focuses strictly on client-facing/productive efforts.</p>
+                                <p class="text-xs mb-1"><strong>Manager Trends:</strong> Compare which managers are driving the highest utilization.</p>
+                                <p class="text-xs"><strong>Resource-wise Utilization:</strong> A vertical bar chart showing individual utilization. Use the dropdown to sort alphabetically, or by highest/lowest utilization.</p>
+                            </div>
+                            <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                                <h4 class="font-bold text-slate-800 mb-1">3.3 Non-Productive Analysis</h4>
+                                <p class="text-xs mb-2 text-slate-500">Focuses on internal time, bench time, or PTO.</p>
+                                <p class="text-xs mb-1"><strong>Task Distribution (Donut Chart):</strong> Shows exactly where non-productive time is being spent.</p>
+                                <p class="text-xs"><strong>Top Resources:</strong> Identifies which resources are recording the most non-productive hours.</p>
+                            </div>
+                            <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                                <h4 class="font-bold text-slate-800 mb-1">3.4 Non-Bill Analysis</h4>
+                                <p class="text-xs mb-2 text-slate-500">Focuses on client work that is not yielding revenue.</p>
+                                <p class="text-xs mb-1"><strong>Smart KPIs:</strong> Displays Total Non-Bill Hours, Average Monthly Volume, and the Peak Month.</p>
+                                <p class="text-xs mb-1"><strong>Comparative Insight Box:</strong> Automatically calculates Month-over-Month (MoM) % changes and baseline comparisons (Latest vs. First Month) under the Monthly chart.</p>
+                                <p class="text-xs"><strong>Manager Trend Lines:</strong> A multi-line chart tracking non-billable volume across top managers over time.</p>
+                            </div>
+                            <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                                <h4 class="font-bold text-slate-800 mb-1">3.5 Resourcing Analysis</h4>
+                                <p class="text-xs mb-2 text-slate-500">Focuses on headcount rather than hours.</p>
+                                <p class="text-xs mb-1"><strong>Active Resource Count & Attrition:</strong> Tracks the number of unique individuals billing time per manager, alongside a stacked attrition chart and YTD table.</p>
+                                <p class="text-xs mb-1"><strong>Current Resource Count:</strong> A bar chart tracking the active headcount by Manager for the most recent week based on capacity.</p>
+                                <p class="text-xs"><strong>Client FTE:</strong> Converts productive hours logged against a client into a Full-Time Equivalent (FTE) metric against the global timeline to show the actual proportional footprint. The chart displays both the calculated FTE and the total exact hours billed (e.g., 2.6 FTE (104 hrs)).</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-800 border-b border-slate-200 pb-2 mb-4 text-indigo-900">4. Interactive Features</h3>
+                        
+                        <h4 class="font-semibold text-slate-800 mt-4 mb-2">4.1 Global Cascading Filters</h4>
+                        <ul class="list-disc pl-6 space-y-1 mb-4">
+                            <li><strong>Cascading Logic:</strong> The filters talk to each other. For example, if you filter by a specific Resource Manager, the Resource Name, Project Code, and Client Name dropdowns will instantly shrink to <em>only</em> show the items associated with that manager.</li>
+                            <li><strong>Smart Sorting & Formatting:</strong> The <em>Month</em> and <em>Week Beginning</em> filters automatically sort chronologically (e.g., Jan, Feb, Mar) rather than alphabetically. Additionally, all dates across the dashboard, filters, and grids are universally standardized to a clear <code>dd-Mmm-yyyy</code> format (e.g., 02-Feb-2026) to prevent regional confusion.</li>
+                        </ul>
+
+                        <h4 class="font-semibold text-slate-800 mt-4 mb-2">4.2 Chart Cross-Filtering (Drill-downs)</h4>
+                        <p class="mb-2">Every chart on the dashboard is interactive.</p>
+                        <ul class="list-disc pl-6 space-y-1 mb-4">
+                            <li><strong>Filter:</strong> Click on any bar, pie slice, or line point to instantly filter the entire dashboard by that specific dimension.</li>
+                            <li><strong>Clear:</strong> Click that same element again, or click anywhere in the blank background of that chart, to remove the filter.</li>
+                        </ul>
+
+                        <h4 class="font-semibold text-slate-800 mt-4 mb-2">4.3 Data Grids & Exporting</h4>
+                        <p class="mb-2">At the bottom of every tab is a data grid section.</p>
+                        <ul class="list-disc pl-6 space-y-2 mb-4">
+                            <li><strong>Summary Data Grid:</strong> Use the <em>Group By:</em> dropdown to pivot your data by Resource, Manager, Task, Project, Client, or <strong>Week Beginning</strong>. It will calculate exact hours, capacity, and utilization. (Note: When viewing the Non-Bill tab, this grid automatically surfaces the Oracle Code and Client Name).</li>
+                            <li><strong>Hierarchical Grouping (Resourcing Tab):</strong> When viewing the Summary Grid under the Resourcing Analysis tab, grouping data unlocks a multi-level nested view. For example, grouping by Manager allows you to toggle and drill down into specific Resources, and then further down into specific Clients. (Note: Capacity and Utilization % columns are intentionally hidden in this view to focus strictly on structural hierarchy and billed hours).</li>
+                            <li><strong>Expand / Collapse All:</strong> When using nested hierarchical grouping, use the quick-action buttons next to the "Group By" dropdown to instantly open or close all data tiers with a single click.</li>
+                            <li><strong>Raw Data Grid:</strong> Shows the row-by-row granular data. Use the local search box to find specific entries.</li>
+                            <li><strong>Smart Export:</strong> The blue/green Export buttons will generate a <code>.csv</code> file that respects <em>exactly</em> what is currently visible on your screen (including anything typed into the search boxes).</li>
+                        </ul>
+                        
+                        <h4 class="font-semibold text-slate-800 mt-4 mb-2">4.4 Global Navigation & Reporting Controls</h4>
+                        <p class="mb-2">Located at the top right of the application navigation bar, these controls are always accessible:</p>
+                        <ul class="list-disc pl-6 space-y-2 mb-4">
+                            <li><strong><i class="fa-solid fa-camera mr-1 text-emerald-500"></i> Visual Snapshot:</strong> Click this button to automatically generate a complete, visual report of your current dashboard. The engine will cycle through all your tabs, take high-resolution screenshots of your currently filtered charts and metrics, and package them into a single, offline HTML file. You can easily email this file or open it later to view the visual report without needing to re-upload the data.</li>
+                            <li><strong><i class="fa-solid fa-download mr-1 text-blue-500"></i> Save Session:</strong> Click this to download your active session as a lightweight <code>.json</code> file. You can drop this <code>.json</code> file back into the upload zone at any time to instantly restore your exact filters and data state without needing the original Excel file!</li>
+                            <li><strong><i class="fa-solid fa-book-open mr-1 text-indigo-500"></i> Built-in User Guide:</strong> Click the "User Guide" button to open an interactive overlay of this documentation directly inside the dashboard. This allows you to quickly reference business rules and logic without losing your current filtered session.</li>
+                            <li><strong><i class="fa-solid fa-trash-can mr-1 text-rose-500"></i> Reset:</strong> Click this to instantly clear all loaded data and filters, allowing you to start fresh with a new Excel file.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
     </main>
 
     <script>
@@ -263,8 +409,8 @@
                 dropZone.addEventListener('click', () => fileInput.click());
                 ['dragenter', 'dragover'].forEach(e => dropZone.addEventListener(e, (ev) => { ev.preventDefault(); dropZone.classList.add('drag-active'); }));
                 ['dragleave', 'drop'].forEach(e => dropZone.addEventListener(e, (ev) => { ev.preventDefault(); dropZone.classList.remove('drag-active'); }));
-                dropZone.addEventListener('drop', (e) => this.handleFile(e.dataTransfer.files[0]));
-                fileInput.addEventListener('change', (e) => this.handleFile(e.target.files[0]));
+                dropZone.addEventListener('drop', (e) => { this.handleFile(e.dataTransfer.files[0]); });
+                fileInput.addEventListener('change', (e) => { this.handleFile(e.target.files[0]); e.target.value = ''; });
             }
             setTab(tab) {
                 STATE.currentTab = tab;
@@ -278,11 +424,56 @@
                     this.updateDashboard();
                     this.updateTable(); 
                     this.renderRawTable();
-                    Object.values(STATE.charts).forEach(c => c.resize());
+                    Object.values(STATE.charts).forEach(c => { if(c) c.resize(); });
                 });
             }
+            
+            formatDateDDMMMYYYY(dateVal) {
+                let d = dateVal;
+                if (!(d instanceof Date)) d = new Date(d);
+                if (isNaN(d.getTime())) return dateVal;
+                const day = String(d.getDate()).padStart(2, '0');
+                const monthStrShort = d.toLocaleString('en-US', { month: 'short' });
+                const yearStr = d.getFullYear().toString();
+                return `${day}-${monthStrShort}-${yearStr}`;
+            }
+
             handleFile(file) {
                 if (!file) return;
+
+                // Handle Saved Workspace JSON Session Restore
+                if (file.name.toLowerCase().endsWith('.json')) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const savedState = JSON.parse(e.target.result);
+                            if (!savedState.rawData) throw new Error("Invalid Session File format.");
+                            
+                            // Re-hydrate JS date objects
+                            savedState.rawData.forEach(r => { if(r._wDate) r._wDate = new Date(r._wDate); });
+                            savedState.processedData.forEach(r => { if(r._wDate) r._wDate = new Date(r._wDate); });
+                            
+                            STATE.rawData = savedState.rawData;
+                            STATE.processedData = savedState.processedData;
+                            STATE.globalMaxWeek = savedState.globalMaxWeek;
+                            
+                            STATE.filterOptions = {};
+                            for (const [k, v] of Object.entries(savedState.filterOptions)) STATE.filterOptions[k] = new Set(v);
+                            
+                            STATE.activeFilters = {};
+                            if (savedState.activeFilters) {
+                                for (const [k, v] of Object.entries(savedState.activeFilters)) STATE.activeFilters[k] = new Set(v);
+                            }
+                            
+                            this.initDashboard();
+                            this.filterData(); // Apply the restored filters
+                        } catch (err) { this.showError("Could not load session: " + err.message); }
+                    };
+                    reader.readAsText(file);
+                    return;
+                }
+
+                // Standard Excel handling
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     try {
@@ -296,6 +487,7 @@
                 };
                 reader.readAsArrayBuffer(file);
             }
+            
             validateAndTransform(json) {
                 if (!json || json.length === 0) throw new Error("File is empty.");
                 const ALIAS_MAP = { "oracle proj id": "oracle code", "project name": "project description", "hours": "hours billed" };
@@ -313,17 +505,22 @@
                         const match = CONFIG.requiredColumns.find(rc => rc.toLowerCase() === mappedKey);
                         if (match) safeRow[match] = row[k];
                     });
+                    
+                    if (safeRow['Date']) safeRow['Date'] = this.formatDateDDMMMYYYY(safeRow['Date']);
+                    
                     const status = (safeRow['Timesheet Status'] || '').toLowerCase();
                     if (status.includes('cancelled') || status.includes('returned')) return;
                     let wDate = safeRow['Week Beginning'];
                     if (!(wDate instanceof Date)) wDate = new Date(wDate);
                     if (isNaN(wDate.getTime())) return;
-                    const weekStr = wDate.toISOString().split('T')[0];
-                    const key = `${safeRow['Resource Name']}|${weekStr}`;
+                    
+                    const formattedWeekStr = this.formatDateDDMMMYYYY(wDate);
+                    
+                    const key = `${safeRow['Resource Name']}|${wDate.getTime()}`; // Uses actual timestamp for perfect deduplication
                     if (!groupedRows.has(key)) groupedRows.set(key, []);
                     safeRow._normStatus = status;
                     safeRow._wDate = wDate;
-                    safeRow.weekString = weekStr;
+                    safeRow.weekString = formattedWeekStr;
                     groupedRows.get(key).push(safeRow);
                 });
 
@@ -341,10 +538,7 @@
                 let maxW = '';
                 deduplicatedData.forEach((safeRow, idx) => {
                     const wDate = safeRow._wDate;
-                    const day = String(wDate.getDate()).padStart(2, '0');
-                    const monthStrShort = wDate.toLocaleString('default', { month: 'short' });
-                    const yearStr = wDate.getFullYear().toString();
-                    const weekStr = `${day}-${monthStrShort}-${yearStr}`; // Formatted as dd-Mmm-yyyy
+                    const weekStr = safeRow.weekString;
                     
                     if (wDate > maxWDate) { maxWDate = wDate; maxW = weekStr; }
                     
@@ -352,8 +546,8 @@
                     const oracleCode = parseInt(safeRow['Oracle Code']);
                     const typeCodeStr = String(safeRow['Type Code'] || '').trim().toUpperCase();
                     const isNonBillable = (typeCodeStr === 'NON' && oracleCode !== CONFIG.nonProductiveCode);
-                    const monthStr = wDate.toLocaleString('default', { month: 'short', year: 'numeric' });
-                    const longMonthStr = wDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+                    const monthStr = wDate.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+                    const longMonthStr = wDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
                     const yearStrVal = wDate.getFullYear().toString();
                     const enriched = { ...safeRow, _id: idx, hours: hours, isProductive: oracleCode !== CONFIG.nonProductiveCode, isNonBillable: isNonBillable, 'Type Code': typeCodeStr, oracleCodeInt: oracleCode, monthString: monthStr, 'Year': yearStrVal, 'Month': longMonthStr, 'Week Beginning': weekStr };
                     Object.keys(distincts).forEach(k => { if(enriched[k]) distincts[k].add(String(enriched[k])); });
@@ -401,7 +595,7 @@
                     if (!STATE.activeFilters[key]) STATE.activeFilters[key] = new Set();
                     
                     let values = Array.from(STATE.filterOptions[key]);
-                    if (key === 'Month') values.sort((a, b) => new Date(a) - new Date(b));
+                    if (key === 'Month' || key === 'Week Beginning') values.sort((a, b) => new Date(a) - new Date(b));
                     else values.sort();
 
                     const group = document.createElement('div'); group.className = 'relative filter-group'; 
@@ -500,6 +694,8 @@
 
             renderCharts() {
                 Object.values(STATE.charts).forEach(c => c?.destroy());
+                STATE.charts = {};
+
                 const data = STATE.filteredData;
                 const commonConfig = { maintainAspectRatio: false, plugins: { datalabels: { formatter: (v) => Math.round(v) + '%' } } };
                 const weeks = {}; const months = {}; const resWeekMap = {}; 
@@ -528,7 +724,7 @@
                     return wCap > 0 ? (weeks[w].p / wCap * 100) : 0;
                 });
                 const monthUtilData = sortedMonths.map(m => {
-                    let mCap = 0; const wsInM = sortedWeeks.filter(w => new Date(w).toLocaleString('default', { month: 'long', year: 'numeric' }) === m);
+                    let mCap = 0; const wsInM = sortedWeeks.filter(w => new Date(w).toLocaleString('en-US', { month: 'long', year: 'numeric' }) === m);
                     wsInM.forEach(w => {
                         const wTime = new Date(w).getTime(); Object.entries(resWeekMap).forEach(([r, set]) => {
                             const times = Array.from(set).map(s=>new Date(s).getTime());
@@ -581,7 +777,6 @@
                     const topNP = Object.entries(npTasks).sort((a,b)=>b[1]-a[1]).slice(0,6);
                     STATE.charts.doughnut = new Chart(document.getElementById('chart-doughnut'), { type: 'doughnut', data: { labels: topNP.map(t=>t[0]), datasets: [{data:topNP.map(t=>t[1]), backgroundColor: generateColors(6)}] }, options: { maintainAspectRatio: false, layout: { padding: 25 }, plugins: { legend: { position: 'bottom', labels: { padding: 20, boxWidth: 12, font: { size: 10 } } }, datalabels: { anchor: 'center', align: 'center', color: '#ffffff', font: { weight: 'bold', size: 10 }, formatter: (v,ctx) => { let pct = (v/ctx.dataset.data.reduce((a,b)=>a+b,0)*100).toFixed(0); return pct >= 5 ? `${v}\n(${pct}%)` : ''; } } }, onClick: (e, items) => { if(items.length) this.handleChartClick('Task Name', topNP[items[0].index][0]); else this.clearChartFilter('Task Name'); } } });
                     const trendFmt = (v, ctx) => { const l = ctx.chart.data.labels[ctx.dataIndex]; const tot = weeks[l]?.tot || months[l]?.tot; return `${v} (${tot>0?(v/tot*100).toFixed(0):0}%)`; };
-                    
                     STATE.charts.npTrend = new Chart(document.getElementById('chart-nonprod-trend'), { 
                         type: 'bar', 
                         data: { labels: sortedWeeks, datasets: [{ label: 'NP Hours', data: sortedWeeks.map(w=>weeks[w].np), backgroundColor: '#f43f5e' }] }, 
@@ -599,7 +794,6 @@
                             } 
                         } 
                     });
-                    
                     STATE.charts.npMonthly = new Chart(document.getElementById('chart-nonprod-monthly'), { type: 'bar', data: { labels: sortedMonths, datasets: [{ label: 'NP Hours', data: sortedMonths.map(m=>months[m].np), backgroundColor: '#fb7185' }] }, options: { maintainAspectRatio: false, plugins: { legend: {display:false}, datalabels: { color: '#000', formatter: trendFmt } }, onClick: (e, items) => { if(items.length) this.handleChartClick('Month', sortedMonths[items[0].index]); else this.clearChartFilter('Month'); } } });
                     const npRes = {}; data.filter(d=>!d.isProductive).forEach(d => npRes[d['Resource Name']] = (npRes[d['Resource Name']]||0)+d.hours);
                     const topResNP = Object.entries(npRes).sort((a,b)=>b[1]-a[1]);
@@ -972,13 +1166,129 @@
                 const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(d), "RawData");
                 XLSX.writeFile(wb, "Clarity_Raw_Export.csv");
             }
+            
             exportCSV() { 
                 const d = STATE.filteredData.map(({_id, isProductive, oracleCodeInt, weekString, monthString, _wDate, _normStatus, isNonBillable, ...rest}) => rest);
                 const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(d), "Export");
                 XLSX.writeFile(wb, "Clarity_Export.csv");
             }
+
+            exportSession() {
+                if (!STATE.rawData || STATE.rawData.length === 0) return;
+                const sessionData = {
+                    rawData: STATE.rawData,
+                    processedData: STATE.processedData,
+                    globalMaxWeek: STATE.globalMaxWeek,
+                    filterOptions: Object.entries(STATE.filterOptions).reduce((acc, [k, v]) => { acc[k] = Array.from(v); return acc; }, {}),
+                    activeFilters: Object.entries(STATE.activeFilters).reduce((acc, [k, v]) => { acc[k] = Array.from(v); return acc; }, {})
+                };
+                const blob = new Blob([JSON.stringify(sessionData)], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `Clarity_Workspace_${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+            
+            // Replaces the native print/JSON system with the multi-tab screenshot engine
+            async exportVisualSnapshot() {
+                if (!STATE.rawData || STATE.rawData.length === 0) return;
+                
+                const btn = document.getElementById('btn-snapshot');
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5 text-emerald-500"></i> Capturing...';
+                btn.disabled = true;
+
+                const originalTab = STATE.currentTab;
+                const tabs = ['exec', 'prod', 'nonprod', 'nonbill', 'resourcing'];
+                const tabNames = {
+                    'exec': 'Executive Summary', 
+                    'prod': 'Productive Analysis', 
+                    'nonprod': 'Non-Productive Analysis', 
+                    'nonbill': 'Non-Bill Analysis', 
+                    'resourcing': 'Resourcing Analysis'
+                };
+                
+                // Initialize the structural container for our offline "Snapshot" file
+                let htmlOut = `<!DOCTYPE html>
+                <html lang="en">
+                <head>
+                    <meta charset="UTF-8">
+                    <title>Dashboard Snapshot - Workforce Intelligence</title>
+                    <style>
+                        body { font-family: 'Segoe UI', Roboto, sans-serif; background: #f1f5f9; padding: 40px; text-align: center; color: #334155; margin: 0; }
+                        .container { max-width: 1400px; margin: 0 auto; }
+                        h1 { margin-bottom: 5px; color: #0f172a; font-size: 28px;}
+                        p.meta { color: #64748b; margin-bottom: 40px; font-size: 14px; }
+                        .tab-section { margin-bottom: 60px; text-align: left; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+                        h2 { font-size: 22px; margin-top: 0; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #e2e8f0; color: #4f46e5; }
+                        img { max-width: 100%; height: auto; border-radius: 8px; border: 1px solid #e2e8f0; display: block; margin: 0 auto;}
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <h1>Workforce Intelligence Snapshot</h1>
+                        <p class="meta"><span style="font-weight:bold;">Generated on:</span> ${new Date().toLocaleString()}</p>`;
+
+                // Loop through every tab, render it, wait for charts, and snapshot it!
+                for (const tab of tabs) {
+                    this.setTab(tab);
+                    
+                    // Give ChartJS and the DOM layout 600ms to finish animating/resizing
+                    await new Promise(r => setTimeout(r, 600));
+                    
+                    const sec = document.getElementById('sec-' + tab);
+                    if (!sec) continue;
+
+                    try {
+                        const canvas = await html2canvas(sec, { 
+                            scale: 2, // High resolution
+                            backgroundColor: '#f8fafc',
+                            logging: false
+                        });
+                        
+                        const base64Image = canvas.toDataURL('image/jpeg', 0.85);
+                        htmlOut += `
+                            <div class="tab-section">
+                                <h2>${tabNames[tab]}</h2>
+                                <img src="${base64Image}" alt="${tabNames[tab]} Screenshot" />
+                            </div>`;
+                    } catch(e) {
+                        console.error("Could not capture tab:", tab, e);
+                    }
+                }
+
+                htmlOut += `</div></body></html>`;
+                
+                // Return user to the tab they were on originally
+                this.setTab(originalTab);
+                
+                // Package the HTML and trigger download
+                const blob = new Blob([htmlOut], { type: "text/html" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `Workforce_Snapshot_${new Date().toISOString().split('T')[0]}.html`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                // Reset button UI
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+
             showError(msg) { document.getElementById('error-message').classList.remove('hidden'); document.getElementById('error-text').innerText = msg; }
+            
+            // New Methods to handle the User Guide Modal
+            openUserGuide() { document.getElementById('user-guide-modal').classList.remove('hidden'); }
+            closeUserGuide() { document.getElementById('user-guide-modal').classList.add('hidden'); }
         }
+        
         const app = new ClarityApp();
     </script>
 </body>
