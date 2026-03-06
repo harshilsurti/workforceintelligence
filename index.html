@@ -55,10 +55,7 @@
                     </div>
                 </div>
                 <div class="mt-8 text-left text-sm text-slate-600 bg-slate-50 p-5 rounded-lg border border-slate-200 shadow-sm w-full max-w-md mx-auto">
-                    <div class="bg-indigo-50/70 border border-indigo-100 rounded p-3 mb-4 text-xs text-indigo-800 shadow-sm">
-                        <span class="font-bold text-indigo-700"><i class="fa-solid fa-lightbulb text-amber-500 mr-1"></i> Quick Upload:</span> You can directly upload the <span class="font-bold">"Allscripts Timesheet detail by resource V3.11"</span> report from Clarity without any changes.
-                    </div>
-                    <p class="font-bold text-slate-700 mb-3 uppercase tracking-wider text-xs border-b border-slate-200 pb-2">Or Use Manual Columns (Sequential):</p>
+                    <p class="font-bold text-slate-700 mb-3 uppercase tracking-wider text-xs border-b border-slate-200 pb-2">Required Excel Columns (Sequential):</p>
                     <ol class="list-decimal list-inside space-y-1 font-mono text-xs">
                         <li>Date</li>
                         <li>Oracle Code <em class="text-slate-400">(or Oracle Proj ID)</em></li>
@@ -404,8 +401,7 @@
                     if (!STATE.activeFilters[key]) STATE.activeFilters[key] = new Set();
                     
                     let values = Array.from(STATE.filterOptions[key]);
-                    // Updated condition to sort 'Week Beginning' by actual date!
-                    if (key === 'Month' || key === 'Week Beginning') values.sort((a, b) => new Date(a) - new Date(b));
+                    if (key === 'Month') values.sort((a, b) => new Date(a) - new Date(b));
                     else values.sort();
 
                     const group = document.createElement('div'); group.className = 'relative filter-group'; 
@@ -545,7 +541,22 @@
                 });
                 ['chart-trend', 'chart-trend-prod'].forEach(id => {
                     const el = document.getElementById(id); if(!el) return;
-                    STATE.charts[id] = new Chart(el, { type: 'line', data: { labels: sortedWeeks, datasets: [{ label: 'Utilization %', data: weekUtilData, borderColor: '#4f46e5', tension: 0.3 }] }, options: { ...commonConfig, onClick: (e, items) => { if(items.length) this.handleChartClick('Week Beginning', sortedWeeks[items[0].index]); else this.clearChartFilter('Week Beginning'); } } });
+                    STATE.charts[id] = new Chart(el, { 
+                        type: 'line', 
+                        data: { labels: sortedWeeks, datasets: [{ label: 'Utilization %', data: weekUtilData, borderColor: '#4f46e5', tension: 0.3 }] }, 
+                        options: { 
+                            ...commonConfig, 
+                            onClick: (e, items) => { 
+                                if(items.length) {
+                                    const clickedIso = sortedWeeks[items[0].index];
+                                    const matchedRow = STATE.processedData.find(r => r.weekString === clickedIso);
+                                    this.handleChartClick('Week Beginning', matchedRow ? matchedRow['Week Beginning'] : clickedIso);
+                                } else {
+                                    this.clearChartFilter('Week Beginning'); 
+                                }
+                            } 
+                        } 
+                    });
                 });
                 ['chart-monthly-trend', 'chart-monthly-trend-prod'].forEach(id => {
                     const el = document.getElementById(id); if(!el) return;
@@ -570,7 +581,25 @@
                     const topNP = Object.entries(npTasks).sort((a,b)=>b[1]-a[1]).slice(0,6);
                     STATE.charts.doughnut = new Chart(document.getElementById('chart-doughnut'), { type: 'doughnut', data: { labels: topNP.map(t=>t[0]), datasets: [{data:topNP.map(t=>t[1]), backgroundColor: generateColors(6)}] }, options: { maintainAspectRatio: false, layout: { padding: 25 }, plugins: { legend: { position: 'bottom', labels: { padding: 20, boxWidth: 12, font: { size: 10 } } }, datalabels: { anchor: 'center', align: 'center', color: '#ffffff', font: { weight: 'bold', size: 10 }, formatter: (v,ctx) => { let pct = (v/ctx.dataset.data.reduce((a,b)=>a+b,0)*100).toFixed(0); return pct >= 5 ? `${v}\n(${pct}%)` : ''; } } }, onClick: (e, items) => { if(items.length) this.handleChartClick('Task Name', topNP[items[0].index][0]); else this.clearChartFilter('Task Name'); } } });
                     const trendFmt = (v, ctx) => { const l = ctx.chart.data.labels[ctx.dataIndex]; const tot = weeks[l]?.tot || months[l]?.tot; return `${v} (${tot>0?(v/tot*100).toFixed(0):0}%)`; };
-                    STATE.charts.npTrend = new Chart(document.getElementById('chart-nonprod-trend'), { type: 'bar', data: { labels: sortedWeeks, datasets: [{ label: 'NP Hours', data: sortedWeeks.map(w=>weeks[w].np), backgroundColor: '#f43f5e' }] }, options: { maintainAspectRatio: false, plugins: { legend: {display:false}, datalabels: { color: '#000', formatter: trendFmt } }, onClick: (e, items) => { if(items.length) this.handleChartClick('Week Beginning', sortedWeeks[items[0].index]); else this.clearChartFilter('Week Beginning'); } } });
+                    
+                    STATE.charts.npTrend = new Chart(document.getElementById('chart-nonprod-trend'), { 
+                        type: 'bar', 
+                        data: { labels: sortedWeeks, datasets: [{ label: 'NP Hours', data: sortedWeeks.map(w=>weeks[w].np), backgroundColor: '#f43f5e' }] }, 
+                        options: { 
+                            maintainAspectRatio: false, 
+                            plugins: { legend: {display:false}, datalabels: { color: '#000', formatter: trendFmt } }, 
+                            onClick: (e, items) => { 
+                                if(items.length) {
+                                    const clickedIso = sortedWeeks[items[0].index];
+                                    const matchedRow = STATE.processedData.find(r => r.weekString === clickedIso);
+                                    this.handleChartClick('Week Beginning', matchedRow ? matchedRow['Week Beginning'] : clickedIso);
+                                } else {
+                                    this.clearChartFilter('Week Beginning'); 
+                                }
+                            } 
+                        } 
+                    });
+                    
                     STATE.charts.npMonthly = new Chart(document.getElementById('chart-nonprod-monthly'), { type: 'bar', data: { labels: sortedMonths, datasets: [{ label: 'NP Hours', data: sortedMonths.map(m=>months[m].np), backgroundColor: '#fb7185' }] }, options: { maintainAspectRatio: false, plugins: { legend: {display:false}, datalabels: { color: '#000', formatter: trendFmt } }, onClick: (e, items) => { if(items.length) this.handleChartClick('Month', sortedMonths[items[0].index]); else this.clearChartFilter('Month'); } } });
                     const npRes = {}; data.filter(d=>!d.isProductive).forEach(d => npRes[d['Resource Name']] = (npRes[d['Resource Name']]||0)+d.hours);
                     const topResNP = Object.entries(npRes).sort((a,b)=>b[1]-a[1]);
@@ -583,7 +612,24 @@
                     STATE.charts.nbDoughnut = new Chart(document.getElementById('chart-nonbill-doughnut'), { type: 'doughnut', data: { labels: topNB.map(t=>t[0]), datasets: [{data:topNB.map(t=>t[1]), backgroundColor: generateColors(6)}] }, options: { maintainAspectRatio: false, layout: { padding: 25 }, plugins: { legend: { position: 'bottom', labels: { padding: 20, boxWidth: 12, font: { size: 10 } } }, datalabels: { anchor: 'center', align: 'center', color: '#ffffff', font: { weight: 'bold', size: 10 }, formatter: (v,ctx) => { let pct = (v/ctx.dataset.data.reduce((a,b)=>a+b,0)*100).toFixed(0); return pct >= 5 ? `${v}\n(${pct}%)` : ''; } } }, onClick: (e, items) => { if(items.length) this.handleChartClick('Task Name', topNB[items[0].index][0]); else this.clearChartFilter('Task Name'); } } });
                     const trendFmt = (v, ctx) => { const l = ctx.chart.data.labels[ctx.dataIndex]; const tot = weeks[l]?.tot || months[l]?.tot; return `${v} (${tot>0?(v/tot*100).toFixed(0):0}%)`; };
                     const nbWeeksData = sortedWeeks.map(w => weeks[w].nb);
-                    STATE.charts.nbTrend = new Chart(document.getElementById('chart-nonbill-trend'), { type: 'bar', data: { labels: sortedWeeks, datasets: [{ label: 'Non-Bill Hours', data: nbWeeksData, backgroundColor: '#f59e0b' }] }, options: { maintainAspectRatio: false, plugins: { legend: {display:false}, datalabels: { color: '#000', formatter: trendFmt } }, onClick: (e, items) => { if(items.length) this.handleChartClick('Week Beginning', sortedWeeks[items[0].index]); else this.clearChartFilter('Week Beginning'); } } });
+                    
+                    STATE.charts.nbTrend = new Chart(document.getElementById('chart-nonbill-trend'), { 
+                        type: 'bar', 
+                        data: { labels: sortedWeeks, datasets: [{ label: 'Non-Bill Hours', data: nbWeeksData, backgroundColor: '#f59e0b' }] }, 
+                        options: { 
+                            maintainAspectRatio: false, 
+                            plugins: { legend: {display:false}, datalabels: { color: '#000', formatter: trendFmt } }, 
+                            onClick: (e, items) => { 
+                                if(items.length) {
+                                    const clickedIso = sortedWeeks[items[0].index];
+                                    const matchedRow = STATE.processedData.find(r => r.weekString === clickedIso);
+                                    this.handleChartClick('Week Beginning', matchedRow ? matchedRow['Week Beginning'] : clickedIso);
+                                } else {
+                                    this.clearChartFilter('Week Beginning'); 
+                                }
+                            } 
+                        } 
+                    });
                     
                     const nbMonthsData = sortedMonths.map(m => months[m].nb);
                     const nbTrendBox = document.getElementById('nonbill-trend-analysis');
